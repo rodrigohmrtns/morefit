@@ -149,12 +149,19 @@ class ProfileIn(BaseModel):
 class WeightIn(BaseModel):
     weight_kg: float
     date: Optional[str] = None
-    time: Optional[str] = None  # HH:MM
+    time: Optional[str] = None
     note: Optional[str] = None
     source: Optional[Literal["manual", "bluetooth"]] = "manual"
     body_fat_pct: Optional[float] = None
     muscle_mass_kg: Optional[float] = None
     body_water_pct: Optional[float] = None
+    # Composição corporal completa (Módulo 14)
+    protein_pct: Optional[float] = None
+    lean_mass_kg: Optional[float] = None
+    bone_mass_kg: Optional[float] = None
+    visceral_fat: Optional[float] = None
+    bmr_kcal: Optional[int] = None
+    metabolic_age: Optional[int] = None
     # Body measurements (Module 7)
     waist_cm: Optional[float] = None
     hip_cm: Optional[float] = None
@@ -191,15 +198,23 @@ class WaterIn(BaseModel):
 
 class ExerciseIn(BaseModel):
     name: str
+    category: Optional[Literal["gym", "running", "bike", "walking", "swimming", "crossfit", "pilates", "yoga", "custom"]] = "custom"
     duration_min: int
     calories_burned: float
     intensity: Optional[Literal["low", "moderate", "high"]] = "moderate"
+    note: Optional[str] = None
     date: Optional[str] = None
 
 
 class SleepIn(BaseModel):
     hours: float
     quality: Optional[Literal["poor", "ok", "good", "great"]] = "good"
+    rem_hours: Optional[float] = None
+    deep_hours: Optional[float] = None
+    light_hours: Optional[float] = None
+    bedtime: Optional[str] = None  # HH:MM
+    wake_time: Optional[str] = None
+    note: Optional[str] = None
     date: Optional[str] = None
 
 
@@ -354,6 +369,12 @@ async def add_weight(payload: WeightIn, user: dict = Depends(current_user)):
         "body_fat_pct": payload.body_fat_pct,
         "muscle_mass_kg": payload.muscle_mass_kg,
         "body_water_pct": payload.body_water_pct,
+        "protein_pct": payload.protein_pct,
+        "lean_mass_kg": payload.lean_mass_kg,
+        "bone_mass_kg": payload.bone_mass_kg,
+        "visceral_fat": payload.visceral_fat,
+        "bmr_kcal": payload.bmr_kcal,
+        "metabolic_age": payload.metabolic_age,
         "waist_cm": payload.waist_cm,
         "hip_cm": payload.hip_cm,
         "arm_cm": payload.arm_cm,
@@ -1059,6 +1080,140 @@ async def dashboard(user: dict = Depends(current_user)):
         "meals_count": len(meals),
         "photos": photos,
     }
+
+
+# -------------------- Steps history (Module 13) --------------------
+@api.get("/steps")
+async def list_steps(user: dict = Depends(current_user), days: int = 30):
+    cutoff = (now_utc().date() - timedelta(days=days)).isoformat()
+    items = await db.steps.find(
+        {"user_id": user["user_id"], "date": {"$gte": cutoff}}, {"_id": 0},
+    ).sort("date", -1).to_list(days)
+    total = sum(x.get("steps", 0) for x in items)
+    avg = round(total / max(1, len(items))) if items else 0
+    return {"items": items, "total": total, "avg": avg, "goal": user.get("daily_steps_goal") or 8000}
+
+
+# -------------------- IA Coach (Module 15) --------------------
+class CoachMsgIn(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+
+async def _build_user_context(user: dict) -> str:
+    """Build a compact context string for the coach LLM."""
+    uid = user["user_id"]
+    weights = await db.weights.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(7)
+    meals = await db.meals.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(20)
+    exercises = await db.exercises.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(10)
+    sleeps = await db.sleeps.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(7)
+    waters_today = await db.waters.find({"user_id": uid, "date": today_iso()}, {"_id": 0}).to_list(100)
+    water_today_ml = sum(w.get("amount_ml", 0) for w in waters_today)
+
+    lines: list[str] = []
+    lines.append(f"Usuário: {user.get('name', 'Anônimo')} • objetivo: {user.get('goal', 'maintain')}")
+    if user.get('height_cm'): lines.append(f"Altura: {user['height_cm']} cm")
+    if user.get('goal_weight_kg'): lines.append(f"Peso meta: {user['goal_weight_kg']} kg")
+    if weights:
+        w0 = weights[0]
+        lines.append(f"Peso atual: {w0.get('weight_kg')} kg em {w0.get('date')}")
+        if len(weights) > 1:
+            diff = round(weights[0].get('weight_kg', 0) - weights[-1].get('weight_kg', 0), 2)
+            lines.append(f"Variação nos últimos {len(weights)} registros: {diff:+} kg")
+    if sleeps:
+        sh = [s.get('hours') for s in sleeps if s.get('hours')]
+        if sh: lines.append(f"Sono médio (últimos {len(sh)}): {round(sum(sh)/len(sh), 1)}h")
+    if exercises:
+        mins = sum(e.get('duration_min', 0) for e in exercises)
+        lines.append(f"Exercícios recentes: {len(exercises)} sessões, {mins} min totais")
+    if meals:
+        kcal = sum(m.get('calories', 0) for m in meals[:10])
+        lines.append(f"Últimas 10 refeições somam {round(kcal)} kcal")
+    lines.append(f"Meta calórica diária: {user.get('daily_calorie_goal', 2000)} kcal")
+    lines.append(f"Água hoje: {water_today_ml} / {user.get('daily_water_ml_goal', 2000)} ml")
+    return "\n".join(lines)
+
+
+@api.post("/coach/chat")
+async def coach_chat(payload: CoachMsgIn, user: dict = Depends(current_user)):
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(500, f"IA indisponível: {e}")
+
+    session_id = payload.session_id or f"coach_{user['user_id']}_{uuid.uuid4().hex[:8]}"
+    context = await _build_user_context(user)
+    system = (
+        "Você é o Coach Virtual do VitaTracker: nutricionista + personal trainer + psicólogo motivacional. "
+        "Responda em português do Brasil, de forma acolhedora, prática e concisa (máximo 4-6 frases). "
+        "Use os dados do usuário fornecidos abaixo para personalizar. Se detectar estagnação, oriente ajustes. "
+        "Se for pergunta sobre suplementos/medicações, oriente consultar um profissional. "
+        "Sempre termine com uma dica prática ou pergunta motivacional.\n\n"
+        f"DADOS DO USUÁRIO:\n{context}"
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system)\
+        .with_model("gemini", "gemini-2.5-flash")
+    # Save user message
+    await db.coach_messages.insert_one({
+        "user_id": user["user_id"], "session_id": session_id, "role": "user",
+        "content": payload.message, "created_at": now_utc().isoformat(),
+    })
+    try:
+        reply = await chat.send_message(UserMessage(text=payload.message))
+    except Exception as e:
+        log.error("Coach chat error: %s", e)
+        raise HTTPException(502, f"Falha na IA: {e}")
+    reply_text = reply or ""
+    await db.coach_messages.insert_one({
+        "user_id": user["user_id"], "session_id": session_id, "role": "assistant",
+        "content": reply_text, "created_at": now_utc().isoformat(),
+    })
+    return {"session_id": session_id, "reply": reply_text}
+
+
+@api.get("/coach/messages")
+async def coach_messages(user: dict = Depends(current_user), session_id: Optional[str] = None, limit: int = 100):
+    q: dict = {"user_id": user["user_id"]}
+    if session_id:
+        q["session_id"] = session_id
+    items = await db.coach_messages.find(q, {"_id": 0}).sort("created_at", 1).to_list(limit)
+    return {"items": items}
+
+
+@api.post("/coach/analyze")
+async def coach_analyze(user: dict = Depends(current_user)):
+    """Gera um relatório automático da evolução do usuário."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(500, f"IA indisponível: {e}")
+
+    context = await _build_user_context(user)
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"analysis_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+        system_message=(
+            "Você é um analista de saúde do VitaTracker. Com base nos dados do usuário, produza um relatório "
+            "com JSON APENAS no formato: {\"summary\":\"resumo em 2 frases\","
+            "\"strengths\":[\"até 3 pontos fortes\"],\"opportunities\":[\"até 3 oportunidades de melhoria\"],"
+            "\"stagnation_alert\": true|false, \"next_actions\":[\"até 3 ações práticas curtas\"]}. "
+            f"Nunca inclua texto fora do JSON.\n\nDADOS:\n{context}"
+        ),
+    ).with_model("gemini", "gemini-2.5-flash")
+    try:
+        resp = await chat.send_message(UserMessage(text="Analise minha evolução e retorne o JSON."))
+    except Exception as e:
+        raise HTTPException(502, f"Falha na análise: {e}")
+    data = _extract_json(resp or "")
+    if not data:
+        raise HTTPException(422, "Não foi possível interpretar a análise")
+    return {"analysis": data}
+
+
 
 
 app.include_router(api)

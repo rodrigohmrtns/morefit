@@ -70,11 +70,6 @@ export default function Home() {
   const addWater = async (amt: number) => {
     try { await api('/water', { method: 'POST', body: { amount_ml: amt } }); await load(); } catch {}
   };
-  const addSteps = async () => {
-    // quick prompt via +500 increments
-    const next = steps + 500;
-    try { await api('/steps', { method: 'POST', body: { steps: next } }); await load(); } catch {}
-  };
 
   return (
     <View style={s.root} testID="home-screen">
@@ -174,7 +169,7 @@ export default function Home() {
               </View>}
             />
           </Pressable>
-          <Pressable style={{ flex: 1 }} onPress={addSteps} testID="home-steps-card">
+          <Pressable style={{ flex: 1 }} onPress={() => router.push('/steps')} testID="home-steps-card">
             <StatCard
               colors={colors} tint={colors.tintLavender} icon="footsteps" iconColor="#8B7FD9"
               label="Passos" value={`${steps}`} unit={`/ ${stepsGoal}`} progress={stepsPct}
@@ -183,18 +178,32 @@ export default function Home() {
         </View>
 
         <View style={s.grid}>
-          <StatCard
-            colors={colors} tint={colors.tintPeach} icon="moon" iconColor="#D07A45"
-            label="Sono" value={data?.sleep.last_hours != null ? `${data.sleep.last_hours}` : '—'} unit="h"
-            progress={data?.sleep.last_hours ? Math.min(100, (data.sleep.last_hours / (data.sleep.goal_hours || 8)) * 100) : 0}
-          />
-          <StatCard
-            colors={colors} tint={colors.tintMint} icon="flame" iconColor={colors.success}
-            label="Exercícios" value={`${data?.exercises.minutes ?? 0}`} unit="min"
-            progress={Math.min(100, ((data?.exercises.minutes ?? 0) / 60) * 100)}
-            sub={`${data?.exercises.count ?? 0} atividades`}
-          />
+          <Pressable style={{ flex: 1 }} onPress={() => router.push('/sleep-log')} testID="home-sleep-card">
+            <StatCard
+              colors={colors} tint={colors.tintPeach} icon="moon" iconColor="#D07A45"
+              label="Sono" value={data?.sleep.last_hours != null ? `${data.sleep.last_hours}` : '—'} unit="h"
+              progress={data?.sleep.last_hours ? Math.min(100, (data.sleep.last_hours / (data.sleep.goal_hours || 8)) * 100) : 0}
+            />
+          </Pressable>
+          <Pressable style={{ flex: 1 }} onPress={() => router.push('/exercise-log')} testID="home-exercise-card">
+            <StatCard
+              colors={colors} tint={colors.tintMint} icon="flame" iconColor={colors.success}
+              label="Exercícios" value={`${data?.exercises.minutes ?? 0}`} unit="min"
+              progress={Math.min(100, ((data?.exercises.minutes ?? 0) / 60) * 100)}
+              sub={`${data?.exercises.count ?? 0} atividades`}
+            />
+          </Pressable>
         </View>
+
+        {/* Body composition shortcut */}
+        <Pressable style={s.compCta} onPress={() => router.push('/body-composition')} testID="home-body-comp-cta">
+          <View style={s.compIcon}><Ionicons name="body" size={20} color={colors.brandDark} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.compTitle}>Composição corporal</Text>
+            <Text style={s.compSub}>Peso, IMC, gordura, TMB, idade metabólica</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
 
         {/* Fasting CTA */}
         <Pressable style={s.fastCta} onPress={() => router.push('/fasting')} testID="home-fasting-cta">
@@ -373,6 +382,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   fastIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
   fastTitle: { color: colors.brandDark, fontWeight: '700', ...typography.bodyStrong },
   fastSub: { color: colors.brandDark, opacity: 0.7, ...typography.small, marginTop: 2 },
+
+  compCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, padding: spacing.md, borderRadius: radius.lg },
+  compIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
+  compTitle: { color: colors.onSurface, fontWeight: '700', ...typography.bodyStrong },
+  compSub: { color: colors.muted, ...typography.small, marginTop: 2 },
 
   section: { gap: spacing.sm, marginTop: spacing.sm },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
