@@ -36,7 +36,15 @@ export default function WeightLog() {
   const [waterPct, setWaterPct] = useState('');
   const [waist, setWaist] = useState('');
   const [hip, setHip] = useState('');
+  const [arm, setArm] = useState('');
+  const [chest, setChest] = useState('');
+  const [abdomen, setAbdomen] = useState('');
+  const [thigh, setThigh] = useState('');
+  const [calf, setCalf] = useState('');
+  const [neck, setNeck] = useState('');
+  const [shoulders, setShoulders] = useState('');
   const [showExtra, setShowExtra] = useState(false);
+  const [showMeasures, setShowMeasures] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +66,13 @@ export default function WeightLog() {
       if (waterPct) body.body_water_pct = num(waterPct);
       if (waist) body.waist_cm = num(waist);
       if (hip) body.hip_cm = num(hip);
+      if (arm) body.arm_cm = num(arm);
+      if (chest) body.chest_cm = num(chest);
+      if (abdomen) body.abdomen_cm = num(abdomen);
+      if (thigh) body.thigh_cm = num(thigh);
+      if (calf) body.calf_cm = num(calf);
+      if (neck) body.neck_cm = num(neck);
+      if (shoulders) body.shoulders_cm = num(shoulders);
       await api('/weight', { method: 'POST', body });
       router.back();
     } catch (e: any) {
@@ -162,17 +177,71 @@ export default function WeightLog() {
                     placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-water" />
                 </View>
               </View>
+            </View>
+          )}
+
+          {/* Medidas corporais (Módulo 7) */}
+          <Pressable style={s.toggle} onPress={() => setShowMeasures(v => !v)} testID="weight-log-measures-toggle">
+            <Ionicons name={showMeasures ? 'chevron-up' : 'resize'} size={18} color={colors.onSurface} />
+            <Text style={s.toggleTxt}>Medidas corporais (cm)</Text>
+          </Pressable>
+          {showMeasures && (
+            <View style={s.extraBox}>
               <View style={s.gridRow}>
                 <View style={{ flex: 1 }}>
-                  <Label colors={colors} text="Cintura (cm)" />
+                  <Label colors={colors} text="Braço" />
+                  <TextInput style={s.input} value={arm} onChangeText={setArm} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-arm" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Peito" />
+                  <TextInput style={s.input} value={chest} onChangeText={setChest} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-chest" />
+                </View>
+              </View>
+              <View style={s.gridRow}>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Abdômen" />
+                  <TextInput style={s.input} value={abdomen} onChangeText={setAbdomen} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-abdomen" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Cintura" />
                   <TextInput style={s.input} value={waist} onChangeText={setWaist} keyboardType="decimal-pad"
                     placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-waist" />
                 </View>
+              </View>
+              <View style={s.gridRow}>
                 <View style={{ flex: 1 }}>
-                  <Label colors={colors} text="Quadril (cm)" />
+                  <Label colors={colors} text="Quadril" />
                   <TextInput style={s.input} value={hip} onChangeText={setHip} keyboardType="decimal-pad"
                     placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-hip" />
                 </View>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Coxa" />
+                  <TextInput style={s.input} value={thigh} onChangeText={setThigh} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-thigh" />
+                </View>
+              </View>
+              <View style={s.gridRow}>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Panturrilha" />
+                  <TextInput style={s.input} value={calf} onChangeText={setCalf} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-calf" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Pescoço" />
+                  <TextInput style={s.input} value={neck} onChangeText={setNeck} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-neck" />
+                </View>
+              </View>
+              <View style={s.gridRow}>
+                <View style={{ flex: 1 }}>
+                  <Label colors={colors} text="Ombros" />
+                  <TextInput style={s.input} value={shoulders} onChangeText={setShoulders} keyboardType="decimal-pad"
+                    placeholder="0,0" placeholderTextColor={colors.muted} testID="weight-log-shoulders" />
+                </View>
+                <View style={{ flex: 1 }} />
               </View>
             </View>
           )}

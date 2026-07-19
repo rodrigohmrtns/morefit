@@ -9,7 +9,8 @@ import { api } from '@/src/api/client';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Period = 'day' | 'week' | 'month' | 'year';
-type Metric = 'weight' | 'bmi' | 'body_fat' | 'muscle' | 'water_pct' | 'waist' | 'hip';
+type Metric = 'weight' | 'bmi' | 'body_fat' | 'muscle' | 'water_pct' | 'waist' | 'hip'
+  | 'arm' | 'chest' | 'abdomen' | 'thigh' | 'calf' | 'neck' | 'shoulders';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'day', label: 'Diário' },
@@ -24,8 +25,15 @@ const METRICS: { key: Metric; label: string; unit: string; icon: any }[] = [
   { key: 'body_fat', label: 'Gordura', unit: '%', icon: 'water' },
   { key: 'muscle', label: 'Massa', unit: 'kg', icon: 'fitness' },
   { key: 'water_pct', label: 'Água', unit: '%', icon: 'water-outline' },
+  { key: 'arm', label: 'Braço', unit: 'cm', icon: 'barbell' },
+  { key: 'chest', label: 'Peito', unit: 'cm', icon: 'shirt' },
+  { key: 'abdomen', label: 'Abdômen', unit: 'cm', icon: 'body' },
   { key: 'waist', label: 'Cintura', unit: 'cm', icon: 'resize' },
   { key: 'hip', label: 'Quadril', unit: 'cm', icon: 'resize-outline' },
+  { key: 'thigh', label: 'Coxa', unit: 'cm', icon: 'walk' },
+  { key: 'calf', label: 'Panturrilha', unit: 'cm', icon: 'footsteps' },
+  { key: 'neck', label: 'Pescoço', unit: 'cm', icon: 'ellipse' },
+  { key: 'shoulders', label: 'Ombros', unit: 'cm', icon: 'triangle' },
 ];
 
 type Series = { series: { date: string; value: number }[]; stats: {

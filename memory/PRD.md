@@ -88,7 +88,34 @@ Endpoints:
 - `GET /api/analytics/weight?metric=<m>&period=<p>` → series + stats
 - `GET /api/analytics/compare?period=<p>` → todas as métricas para comparação
 
-## Módulo 6 – Fotos (v1.2)
+## Módulo 7 – Medidas Corporais (v1.3)
+Weight-log estendido com **9 medidas cm**: Braço, Peito, Abdômen, Cintura, Quadril, Coxa, Panturrilha, Pescoço, Ombros — seção colapsável "Medidas corporais".
+Progress tab agora expõe **14 métricas** total (peso, IMC, gordura, massa, água, + 9 medidas), cada uma com gráfico individual e comparação.
+
+## Módulo 8 – Hidratação (v1.3)
+Screen `/water` com:
+- Hero sky com valor + meta + progresso + %
+- Registro rápido (150/200/300/500/750 ml)
+- **Meta diária editável** (persistida via `PUT /profile { daily_water_ml_goal }`)
+- **Lembretes** com switch (persistido em AsyncStorage; notificações reais requerem build nativo)
+- Lista "Hoje" com hora de cada registro
+- Histórico de 14 dias com barras de progresso
+
+## Módulo 9 – Alimentação (v1.3)
+Screen `/food-add` com 4 tabs:
+- **Buscar**: banco curado com 20 alimentos pt-BR (calorias + macros) e busca instantânea
+- **Favoritos**: lista persistente por usuário (`POST/GET/DELETE /foods/favorites`)
+- **Barra**: lookup via **OpenFoodFacts** (`GET /foods/barcode/{code}` — API pública gratuita, produtos BR)
+- **Manual**: cadastro livre (nome + macros)
+Modal de porções para confirmar quantidade antes de salvar.
+
+## Módulo 10 – Jejum Intermitente (v1.3)
+Screen `/fasting` com:
+- **Cronômetro anel SVG** com % de progresso (tick a cada segundo)
+- Protocolos: **16:8, 18:6, 20:4, OMAD** com descrição e badge lime
+- Iniciar / Encerrar com um toque
+- Histórico com ícone de status (✔ concluído, ⏱ parcial, ✕ cancelado) e barra
+- Endpoints: `POST /fasting/start`, `POST /fasting/stop`, `GET /fasting/current`, `GET /fasting`, `DELETE /fasting/{id}`
 Screen `/photos` com 3 tabs:
 - **Álbum** – grid 2 colunas com data + delete
 - **Linha do tempo** – agrupado por mês, scroll horizontal

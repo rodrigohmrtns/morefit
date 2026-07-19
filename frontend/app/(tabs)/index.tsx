@@ -161,17 +161,19 @@ export default function Home() {
 
         {/* 2x2 stat grid: água, passos, sono, exercícios */}
         <View style={s.grid}>
-          <StatCard
-            colors={colors} tint={colors.tintSky} icon="water" iconColor={colors.info}
-            label="Hidratação" value={`${waterTotal}`} unit="ml" progress={waterPct}
-            action={<View style={s.miniActions}>
-              {[200, 300, 500].map(ml => (
-                <Pressable key={ml} onPress={() => addWater(ml)} style={s.miniBtn} testID={`home-water-${ml}`}>
-                  <Text style={s.miniBtnTxt}>+{ml}</Text>
-                </Pressable>
-              ))}
-            </View>}
-          />
+          <Pressable style={{ flex: 1 }} onPress={() => router.push('/water')} testID="home-water-card">
+            <StatCard
+              colors={colors} tint={colors.tintSky} icon="water" iconColor={colors.info}
+              label="Hidratação" value={`${waterTotal}`} unit="ml" progress={waterPct}
+              action={<View style={s.miniActions}>
+                {[200, 300, 500].map(ml => (
+                  <Pressable key={ml} onPress={() => addWater(ml)} style={s.miniBtn} testID={`home-water-${ml}`}>
+                    <Text style={s.miniBtnTxt}>+{ml}</Text>
+                  </Pressable>
+                ))}
+              </View>}
+            />
+          </Pressable>
           <Pressable style={{ flex: 1 }} onPress={addSteps} testID="home-steps-card">
             <StatCard
               colors={colors} tint={colors.tintLavender} icon="footsteps" iconColor="#8B7FD9"
@@ -193,6 +195,16 @@ export default function Home() {
             sub={`${data?.exercises.count ?? 0} atividades`}
           />
         </View>
+
+        {/* Fasting CTA */}
+        <Pressable style={s.fastCta} onPress={() => router.push('/fasting')} testID="home-fasting-cta">
+          <View style={s.fastIcon}><Ionicons name="timer-outline" size={22} color={colors.brandDark} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.fastTitle}>Jejum Intermitente</Text>
+            <Text style={s.fastSub}>Cronômetro, protocolos 16:8, 18:6, 20:4, OMAD</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.brandDark} />
+        </Pressable>
 
         {/* AI CTA */}
         <View style={s.ctaRow}>
@@ -356,6 +368,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   aiIcon2: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(198,241,75,0.15)', alignItems: 'center', justifyContent: 'center' },
   aiTitle2: { color: colors.onSurfaceInverse, fontWeight: '700', fontSize: 14 },
   aiSub2: { color: colors.onSurfaceInverse, opacity: 0.7, fontSize: 11, marginTop: 1 },
+
+  fastCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.lg },
+  fastIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
+  fastTitle: { color: colors.brandDark, fontWeight: '700', ...typography.bodyStrong },
+  fastSub: { color: colors.brandDark, opacity: 0.7, ...typography.small, marginTop: 2 },
 
   section: { gap: spacing.sm, marginTop: spacing.sm },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

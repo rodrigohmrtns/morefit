@@ -41,10 +41,15 @@ export default function FoodDiary() {
             <Text style={s.title}>Diário Alimentar</Text>
             <Text style={s.sub}>Hoje • {Math.round(total)} kcal registradas</Text>
           </View>
-          <Pressable style={s.aiPill} onPress={() => router.push('/scan')} testID="food-ai-fab">
-            <Ionicons name="sparkles" size={16} color={colors.brandDark} />
-            <Text style={s.aiPillTxt}>Scan IA</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable style={s.searchPill} onPress={() => router.push('/food-add')} testID="food-add-fab">
+              <Ionicons name="search" size={16} color={colors.onSurface} />
+            </Pressable>
+            <Pressable style={s.aiPill} onPress={() => router.push('/scan')} testID="food-ai-fab">
+              <Ionicons name="sparkles" size={16} color={colors.brandDark} />
+              <Text style={s.aiPillTxt}>Scan IA</Text>
+            </Pressable>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -66,7 +71,7 @@ export default function FoodDiary() {
               </View>
               <View style={s.list}>
                 {items.length === 0 ? (
-                  <Pressable onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })}
+                  <Pressable onPress={() => router.push({ pathname: '/food-add', params: { meal_type: cat.key } })}
                     style={s.emptyRow} testID={`food-empty-${cat.key}`}>
                     <View style={s.plusBadge}><Ionicons name="add" size={18} color={colors.brandDark} /></View>
                     <Text style={s.emptyTxt}>Adicionar refeição</Text>
@@ -85,7 +90,7 @@ export default function FoodDiary() {
                   </View>
                 ))}
                 {items.length > 0 && (
-                  <Pressable onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })}
+                  <Pressable onPress={() => router.push({ pathname: '/food-add', params: { meal_type: cat.key } })}
                     style={s.addMore} testID={`food-add-${cat.key}`}>
                     <Ionicons name="add" size={16} color={colors.brandPrimary} />
                     <Text style={s.addMoreTxt}>Adicionar mais</Text>
@@ -108,6 +113,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   sub: { ...typography.caption, color: colors.muted, marginTop: 2 },
   aiPill: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center', backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.pill },
   aiPillTxt: { color: colors.brandDark, ...typography.caption, fontWeight: '700' },
+  searchPill: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   content: { padding: spacing.xl, gap: spacing.lg },
   section: { gap: spacing.sm },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

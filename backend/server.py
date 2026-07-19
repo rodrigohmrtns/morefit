@@ -155,8 +155,16 @@ class WeightIn(BaseModel):
     body_fat_pct: Optional[float] = None
     muscle_mass_kg: Optional[float] = None
     body_water_pct: Optional[float] = None
+    # Body measurements (Module 7)
     waist_cm: Optional[float] = None
     hip_cm: Optional[float] = None
+    arm_cm: Optional[float] = None
+    chest_cm: Optional[float] = None
+    abdomen_cm: Optional[float] = None
+    thigh_cm: Optional[float] = None
+    calf_cm: Optional[float] = None
+    neck_cm: Optional[float] = None
+    shoulders_cm: Optional[float] = None
 
 
 class MealIn(BaseModel):
@@ -348,6 +356,13 @@ async def add_weight(payload: WeightIn, user: dict = Depends(current_user)):
         "body_water_pct": payload.body_water_pct,
         "waist_cm": payload.waist_cm,
         "hip_cm": payload.hip_cm,
+        "arm_cm": payload.arm_cm,
+        "chest_cm": payload.chest_cm,
+        "abdomen_cm": payload.abdomen_cm,
+        "thigh_cm": payload.thigh_cm,
+        "calf_cm": payload.calf_cm,
+        "neck_cm": payload.neck_cm,
+        "shoulders_cm": payload.shoulders_cm,
         "created_at": now_utc().isoformat(),
     }
     await db.weights.insert_one(entry)
@@ -377,6 +392,13 @@ _METRIC_FIELDS = {
     "water_pct": "body_water_pct",
     "waist": "waist_cm",
     "hip": "hip_cm",
+    "arm": "arm_cm",
+    "chest": "chest_cm",
+    "abdomen": "abdomen_cm",
+    "thigh": "thigh_cm",
+    "calf": "calf_cm",
+    "neck": "neck_cm",
+    "shoulders": "shoulders_cm",
 }
 
 
@@ -499,8 +521,190 @@ async def analytics_compare(user: dict = Depends(current_user), period: str = "m
             "water_pct": _series(lambda d: d.get("body_water_pct")),
             "waist": _series(lambda d: d.get("waist_cm")),
             "hip": _series(lambda d: d.get("hip_cm")),
+            "arm": _series(lambda d: d.get("arm_cm")),
+            "chest": _series(lambda d: d.get("chest_cm")),
+            "abdomen": _series(lambda d: d.get("abdomen_cm")),
+            "thigh": _series(lambda d: d.get("thigh_cm")),
+            "calf": _series(lambda d: d.get("calf_cm")),
+            "neck": _series(lambda d: d.get("neck_cm")),
+            "shoulders": _series(lambda d: d.get("shoulders_cm")),
         },
     }
+
+
+# -------------------- Food DB (Module 9) --------------------
+_FOOD_DB: list[dict] = [
+    {"id": "f_001", "name": "Arroz branco cozido", "unit": "100g", "calories": 130, "protein_g": 2.7, "carbs_g": 28, "fat_g": 0.3},
+    {"id": "f_002", "name": "Feijão preto cozido", "unit": "100g", "calories": 132, "protein_g": 8.9, "carbs_g": 24, "fat_g": 0.5},
+    {"id": "f_003", "name": "Peito de frango grelhado", "unit": "100g", "calories": 165, "protein_g": 31, "carbs_g": 0, "fat_g": 3.6},
+    {"id": "f_004", "name": "Ovo cozido", "unit": "1 un (50g)", "calories": 77, "protein_g": 6.3, "carbs_g": 0.6, "fat_g": 5.3},
+    {"id": "f_005", "name": "Pão francês", "unit": "1 un (50g)", "calories": 135, "protein_g": 4, "carbs_g": 27, "fat_g": 1.2},
+    {"id": "f_006", "name": "Banana prata", "unit": "1 un (100g)", "calories": 89, "protein_g": 1.1, "carbs_g": 23, "fat_g": 0.3},
+    {"id": "f_007", "name": "Maçã", "unit": "1 un (150g)", "calories": 78, "protein_g": 0.4, "carbs_g": 21, "fat_g": 0.3},
+    {"id": "f_008", "name": "Leite integral", "unit": "200ml", "calories": 122, "protein_g": 6.4, "carbs_g": 9.6, "fat_g": 6.4},
+    {"id": "f_009", "name": "Iogurte natural", "unit": "170g", "calories": 100, "protein_g": 10, "carbs_g": 12, "fat_g": 2.5},
+    {"id": "f_010", "name": "Aveia em flocos", "unit": "30g", "calories": 117, "protein_g": 4.3, "carbs_g": 20, "fat_g": 2.1},
+    {"id": "f_011", "name": "Batata doce cozida", "unit": "100g", "calories": 86, "protein_g": 1.6, "carbs_g": 20, "fat_g": 0.1},
+    {"id": "f_012", "name": "Salada verde", "unit": "100g", "calories": 20, "protein_g": 1.5, "carbs_g": 3, "fat_g": 0.2},
+    {"id": "f_013", "name": "Salmão grelhado", "unit": "100g", "calories": 208, "protein_g": 22, "carbs_g": 0, "fat_g": 13},
+    {"id": "f_014", "name": "Café preto", "unit": "200ml", "calories": 2, "protein_g": 0.3, "carbs_g": 0, "fat_g": 0},
+    {"id": "f_015", "name": "Whey Protein", "unit": "1 scoop (30g)", "calories": 120, "protein_g": 24, "carbs_g": 3, "fat_g": 1.5},
+    {"id": "f_016", "name": "Abacate", "unit": "100g", "calories": 160, "protein_g": 2, "carbs_g": 9, "fat_g": 15},
+    {"id": "f_017", "name": "Amêndoas", "unit": "30g", "calories": 174, "protein_g": 6.4, "carbs_g": 6, "fat_g": 15},
+    {"id": "f_018", "name": "Pizza mussarela", "unit": "1 fatia (100g)", "calories": 266, "protein_g": 11, "carbs_g": 33, "fat_g": 10},
+    {"id": "f_019", "name": "Coxinha de frango", "unit": "1 un (80g)", "calories": 265, "protein_g": 9, "carbs_g": 25, "fat_g": 15},
+    {"id": "f_020", "name": "Açaí na tigela", "unit": "300g", "calories": 350, "protein_g": 4, "carbs_g": 55, "fat_g": 12},
+]
+
+
+@api.get("/foods/search")
+async def food_search(q: str = "", limit: int = 20, user: dict = Depends(current_user)):
+    ql = (q or "").strip().lower()
+    if not ql:
+        return {"items": _FOOD_DB[:limit]}
+    matches = [f for f in _FOOD_DB if ql in f["name"].lower()]
+    return {"items": matches[:limit]}
+
+
+@api.get("/foods/barcode/{code}")
+async def food_barcode(code: str, user: dict = Depends(current_user)):
+    """Lookup food by barcode using OpenFoodFacts (public free API)."""
+    async with httpx.AsyncClient(timeout=10) as http_client:
+        try:
+            r = await http_client.get(f"https://world.openfoodfacts.org/api/v2/product/{code}.json")
+        except Exception as e:
+            raise HTTPException(502, f"Falha na busca: {e}")
+    if r.status_code != 200:
+        raise HTTPException(404, "Produto não encontrado")
+    data = r.json()
+    if data.get("status") != 1 or not data.get("product"):
+        raise HTTPException(404, "Produto não encontrado")
+    p = data["product"]
+    nutriments = p.get("nutriments", {}) or {}
+
+    def n(key: str) -> float:
+        try:
+            return float(nutriments.get(key) or 0)
+        except Exception:
+            return 0.0
+
+    name = p.get("product_name_pt") or p.get("product_name") or "Sem nome"
+    brand = p.get("brands") or ""
+    kcal = n("energy-kcal_100g") or (n("energy_100g") / 4.184)
+    return {
+        "id": f"barcode_{code}",
+        "name": f"{name}{(' — ' + brand) if brand else ''}",
+        "unit": "100g",
+        "barcode": code,
+        "calories": round(kcal),
+        "protein_g": round(n("proteins_100g"), 1),
+        "carbs_g": round(n("carbohydrates_100g"), 1),
+        "fat_g": round(n("fat_100g"), 1),
+        "image": p.get("image_small_url") or p.get("image_url"),
+    }
+
+
+class FoodFavIn(BaseModel):
+    name: str
+    unit: Optional[str] = None
+    calories: float
+    protein_g: float = 0
+    carbs_g: float = 0
+    fat_g: float = 0
+    source_id: Optional[str] = None
+
+
+@api.post("/foods/favorites")
+async def add_favorite(payload: FoodFavIn, user: dict = Depends(current_user)):
+    entry = payload.dict()
+    entry.update({
+        "id": new_id("fav"), "user_id": user["user_id"],
+        "created_at": now_utc().isoformat(),
+    })
+    await db.food_favorites.insert_one(entry)
+    return {k: v for k, v in entry.items() if k != "_id"}
+
+
+@api.get("/foods/favorites")
+async def list_favorites(user: dict = Depends(current_user)):
+    items = await db.food_favorites.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"items": items}
+
+
+@api.delete("/foods/favorites/{fav_id}")
+async def del_favorite(fav_id: str, user: dict = Depends(current_user)):
+    await db.food_favorites.delete_one({"id": fav_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+# -------------------- Fasting (Module 10) --------------------
+FastProtocol = Literal["16:8", "18:6", "20:4", "OMAD", "custom"]
+_PROTOCOL_HOURS: dict[str, int] = {"16:8": 16, "18:6": 18, "20:4": 20, "OMAD": 23, "custom": 16}
+
+
+class FastStartIn(BaseModel):
+    protocol: FastProtocol = "16:8"
+    target_hours: Optional[float] = None
+    note: Optional[str] = None
+
+
+@api.get("/fasting/current")
+async def current_fast(user: dict = Depends(current_user)):
+    active = await db.fasts.find_one(
+        {"user_id": user["user_id"], "ended_at": None},
+        {"_id": 0},
+    )
+    return {"active": active}
+
+
+@api.post("/fasting/start")
+async def start_fast(payload: FastStartIn, user: dict = Depends(current_user)):
+    await db.fasts.update_many(
+        {"user_id": user["user_id"], "ended_at": None},
+        {"$set": {"ended_at": now_utc().isoformat(), "cancelled": True}},
+    )
+    target = payload.target_hours or float(_PROTOCOL_HOURS.get(payload.protocol, 16))
+    entry = {
+        "id": new_id("fast"),
+        "user_id": user["user_id"],
+        "protocol": payload.protocol,
+        "target_hours": target,
+        "started_at": now_utc().isoformat(),
+        "ended_at": None,
+        "note": payload.note,
+    }
+    await db.fasts.insert_one(entry)
+    return {k: v for k, v in entry.items() if k != "_id"}
+
+
+@api.post("/fasting/stop")
+async def stop_fast(user: dict = Depends(current_user)):
+    active = await db.fasts.find_one({"user_id": user["user_id"], "ended_at": None}, {"_id": 0})
+    if not active:
+        raise HTTPException(400, "Nenhum jejum em andamento")
+    started = datetime.fromisoformat(active["started_at"])
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    ended = now_utc()
+    hours = round((ended - started).total_seconds() / 3600.0, 2)
+    await db.fasts.update_one(
+        {"id": active["id"]},
+        {"$set": {"ended_at": ended.isoformat(), "elapsed_hours": hours}},
+    )
+    return {"id": active["id"], "elapsed_hours": hours}
+
+
+@api.get("/fasting")
+async def list_fasts(user: dict = Depends(current_user), limit: int = 50):
+    items = await db.fasts.find({"user_id": user["user_id"], "ended_at": {"$ne": None}}, {"_id": 0})\
+        .sort("started_at", -1).to_list(limit)
+    return {"items": items}
+
+
+@api.delete("/fasting/{fast_id}")
+async def delete_fast(fast_id: str, user: dict = Depends(current_user)):
+    await db.fasts.delete_one({"id": fast_id, "user_id": user["user_id"]})
+    return {"ok": True}
 
 
 # -------------------- Photo comparison (Module 6) --------------------
