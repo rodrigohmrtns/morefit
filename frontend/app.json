@@ -1,24 +1,29 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "VitaTracker",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.fitproecosystem.fec156"
+      "bundleIdentifier": "com.emergent.fitproecosystem.fec156",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Escanear refeições com IA",
+        "NSPhotoLibraryUsageDescription": "Selecionar fotos de refeições"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#F2F4F2"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.fitproecosystem.fec156"
+      "package": "com.emergent.fitproecosystem.fec156",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +38,14 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#F2F4F2"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Selecionar fotos de refeições",
+          "cameraPermission": "Escanear refeições com IA"
         }
       ]
     ],
