@@ -1,0 +1,169 @@
+{
+  "app_name": "VitaTracker",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A calm, reassuring, and data-driven interface that breathes, using generous whitespace, soft contrast, and clean grouped cards to highlight health metrics.",
+  "color": {
+    "surface": "#F2F4F2",
+    "onSurface": "#1A1C1A",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#505450",
+    "surfaceTertiary": "#EAECEA",
+    "onSurfaceTertiary": "#313531",
+    "surfaceInverse": "#232623",
+    "onSurfaceInverse": "#F2F4F2",
+    "brand": "#4A7258",
+    "brandPrimary": "#4A7258",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E07A5F",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#DCE5DF",
+    "onBrandTertiary": "#2E4737",
+    "success": "#558266",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F4A261",
+    "onWarning": "#1A1C1A",
+    "error": "#E05A5F",
+    "onError": "#FFFFFF",
+    "info": "#4A7258",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E7E5",
+    "borderStrong": "#C2C6C2",
+    "divider": "#EFEFEF"
+  },
+  "typography": {
+    "displayFontFamily": "Satoshi",
+    "textFontFamily": "Satoshi",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical spacing and comfortable iOS-native rhythms. Cards should never be flush to the screen edge. Use padding consistently.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use glass effect on the bottom tab bar when content scrolls behind it.",
+      "Use frosted glass on sticky headers and bottom-sheet handles.",
+      "Apply subtle frosted overlays on featured goal cards if paired with imagery."
+    ],
+    "dont's": [
+      "Do not apply glassmorphism to standard list rows, data input fields, or dense charts.",
+      "Do not stack more than two glass surfaces per screen."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Onboarding/Auth",
+      "purpose": "Introduce the app's value proposition with a calming aesthetic and frictionless login (Email, Google, Apple).",
+      "states": {
+        "loading": "Centered brand-tinted spinner over the abstract gradient.",
+        "empty": "N/A",
+        "error": "Standard iOS style alert for authentication failure."
+      },
+      "layout": "Full-bleed background image with a gradient-to-dark scrim. Value proposition text in large display typography at the bottom 40%, followed by full-width pill-shaped auth buttons (Google, Apple, Email). Ensure safe area padding at the bottom."
+    },
+    {
+      "name": "Home Dashboard",
+      "purpose": "A glanceable daily summary of calories, macros, water, steps, and weight.",
+      "states": {
+        "loading": "Skeleton cards mimicking the layout of the rings and charts.",
+        "empty": "Clean UI showing 'Zero' states with encouraging text to start logging.",
+        "error": "Error card with a retry button to fetch daily data."
+      },
+      "layout": "Vertical scroll layout. Top section: 'Resumo Diário' with concentric macro rings or horizontal progress bars for Carbs, Protein, Fat. Below: 2-column grid for smaller metrics (Água, Passos, Sono) using surfaceSecondary cards with subtle shadow tier 1. Ensure generous md/lg gap between cards."
+    },
+    {
+      "name": "Food Diary",
+      "purpose": "Chronological logging of daily meals (Café, Almoço, Jantar, Snacks) heavily featuring the 'AI Photo Scan' CTA.",
+      "states": {
+        "loading": "Skeleton rows for meal items.",
+        "empty": "A beautiful food imagery placeholder (e.g., poke bowl) with a clear, primary CTA 'Escanear Refeição com IA'.",
+        "error": "Toast or inline error if AI processing fails."
+      },
+      "layout": "Camera-first flow emphasis. Sticky floating action button (FAB) at the bottom or a prominent top card for 'Scan Food'. Below: grouped lists (iOS style with surfaceSecondary bg) for each meal category. Each logged item shows a thumbnail, title, and macro breakdown."
+    },
+    {
+      "name": "Weight/Body Tracking",
+      "purpose": "Visualize weight progress with Noom-inspired smoothed line charts and trend indicators.",
+      "states": {
+        "loading": "Skeleton of the chart area.",
+        "empty": "Illustration/Icon with a prompt 'Registre seu primeiro peso'.",
+        "error": "Error state with a retry option to load historical data."
+      },
+      "layout": "Large, edge-to-edge chart area on a surfaceSecondary card. The chart must display an actual weight line, a projected trend line, and a horizontal goal marker. Below the chart: a sticky or prominent input field/button to log today's weight. Recent history list at the bottom."
+    },
+    {
+      "name": "Profile & Settings",
+      "purpose": "Manage user goals, app settings, and biometric preferences.",
+      "states": {
+        "loading": "Skeleton of the list items.",
+        "empty": "N/A",
+        "error": "Alert for failed updates."
+      },
+      "layout": "Standard iOS grouped list layout. Top section: User avatar (initials or photo) and name. Grouped sections (surfaceSecondary with border/divider) for Metas, Dispositivos (Wearables), and Conta."
+    }
+  ],
+  "images": {
+    "onboarding_hero": {
+      "url": "https://images.pexels.com/photos/7130464/pexels-photo-7130464.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Soft colorful abstract calm gradient background"
+    },
+    "food_diary_placeholder": {
+      "url": "https://images.pexels.com/photos/4828100/pexels-photo-4828100.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Minimalist healthy poke bowl with fresh ingredients"
+    },
+    "fitness_empty_state": {
+      "url": "https://images.pexels.com/photos/33491430/pexels-photo-33491430.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Silhouette of a man running uphill"
+    }
+  },
+  "haptics": {
+    "auth_success": "success",
+    "log_meal_ai": "medium",
+    "log_weight": "light",
+    "tab_press": "light"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the 'iOS-Native Clean' personality. Use soft shadows (tier 1), generous whitespace, and grouped cards.",
+    "BANNED: Do not use any shades of blue, indigo, or purple. Use the provided Sage Green/Moss color palette (#4A7258) for branding and trust.",
+    "For the Onboarding screen, implement a strict gradient-to-dark scrim over the background image (vertical, transparent to >=70% surfaceInverse) to ensure text legibility.",
+    "For the Weight Tracking chart, mimic the Noom style: show a smoothed line graph for actual weight, a dotted line for projected trend, and a horizontal goal line.",
+    "For the Food Diary, prioritize the AI scanning feature. Use a large, touch-friendly primary CTA (e.g., an AI Camera FAB).",
+    "All labels and strings must be in Portuguese (Brasil). E.g., 'Resumo Diário', 'Diário Alimentar', 'Progresso'.",
+    "Ensure all primary CTAs are sticky at the bottom with proper safe-area clearance.",
+    "Cards in a grid must use flex-wrap with space-between. Never leave a card orphaned stretching 50% width."
+  ]
+}
