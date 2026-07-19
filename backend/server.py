@@ -1082,6 +1082,469 @@ async def dashboard(user: dict = Depends(current_user)):
     }
 
 
+# ==================== Módulo 16: Gamificação ====================
+_ACHIEVEMENTS = [
+    {"id": "first_step", "name": "Primeiro passo", "desc": "Completou o cadastro", "icon": "flag", "xp": 25},
+    {"id": "first_weight", "name": "Balança na mão", "desc": "Registrou primeiro peso", "icon": "scale", "xp": 20},
+    {"id": "first_meal", "name": "Bom apetite", "desc": "Primeira refeição no diário", "icon": "restaurant", "xp": 15},
+    {"id": "first_exercise", "name": "Suando a camisa", "desc": "Primeiro exercício registrado", "icon": "flame", "xp": 30},
+    {"id": "first_photo", "name": "Documente!", "desc": "Primeira foto de progresso", "icon": "camera", "xp": 25},
+    {"id": "streak_3", "name": "Ritmo iniciante", "desc": "3 dias consecutivos", "icon": "flash", "xp": 40},
+    {"id": "streak_7", "name": "Uma semana!", "desc": "7 dias consecutivos", "icon": "trophy", "xp": 100},
+    {"id": "streak_30", "name": "Um mês de foco", "desc": "30 dias consecutivos", "icon": "star", "xp": 300},
+    {"id": "meals_10", "name": "Nutrição consciente", "desc": "10 refeições registradas", "icon": "nutrition", "xp": 50},
+    {"id": "exercises_10", "name": "Atleta em treino", "desc": "10 exercícios registrados", "icon": "barbell", "xp": 60},
+    {"id": "water_goal_5", "name": "Bem hidratado", "desc": "Meta de água em 5 dias", "icon": "water", "xp": 50},
+    {"id": "weight_loss_5kg", "name": "-5 kg conquistados", "desc": "Perdeu 5 kg desde o início", "icon": "arrow-down", "xp": 200},
+]
+
+
+async def _compute_streak(uid: str) -> int:
+    """Consecutive days (up to today) with at least one log in weights/meals/waters/exercises."""
+    today = now_utc().date()
+    streak = 0
+    for i in range(0, 365):
+        d = (today - timedelta(days=i)).isoformat()
+        any_log = await db.weights.find_one({"user_id": uid, "date": d}, {"_id": 1}) \
+            or await db.meals.find_one({"user_id": uid, "date": d}, {"_id": 1}) \
+            or await db.waters.find_one({"user_id": uid, "date": d}, {"_id": 1}) \
+            or await db.exercises.find_one({"user_id": uid, "date": d}, {"_id": 1})
+        if any_log:
+            streak += 1
+        else:
+            if i == 0:
+                continue  # today may be empty; count backward
+            break
+    return streak
+
+
+@api.get("/gamification")
+async def gamification(user: dict = Depends(current_user)):
+    uid = user["user_id"]
+    n_weights = await db.weights.count_documents({"user_id": uid})
+    n_meals = await db.meals.count_documents({"user_id": uid})
+    n_exercises = await db.exercises.count_documents({"user_id": uid})
+    n_photos = await db.photos.count_documents({"user_id": uid})
+    # water goal days
+    all_waters = await db.waters.find({"user_id": uid}, {"_id": 0, "date": 1, "amount_ml": 1}).to_list(2000)
+    by_date: dict[str, int] = {}
+    for w in all_waters:
+        by_date[w["date"]] = by_date.get(w["date"], 0) + w.get("amount_ml", 0)
+    water_goal = user.get("daily_water_ml_goal") or 2000
+    water_goal_days = sum(1 for v in by_date.values() if v >= water_goal)
+
+    streak = await _compute_streak(uid)
+
+    # Weight loss
+    start_w = user.get("starting_weight_kg")
+    latest = await db.weights.find({"user_id": uid}, {"_id": 0, "weight_kg": 1}).sort("date", -1).to_list(1)
+    weight_loss = 0.0
+    if start_w and latest:
+        weight_loss = start_w - latest[0]["weight_kg"]
+
+    unlocked: list[dict] = []
+    for a in _ACHIEVEMENTS:
+        cond = False
+        aid = a["id"]
+        if aid == "first_step": cond = True  # user exists
+        elif aid == "first_weight": cond = n_weights >= 1
+        elif aid == "first_meal": cond = n_meals >= 1
+        elif aid == "first_exercise": cond = n_exercises >= 1
+        elif aid == "first_photo": cond = n_photos >= 1
+        elif aid == "streak_3": cond = streak >= 3
+        elif aid == "streak_7": cond = streak >= 7
+        elif aid == "streak_30": cond = streak >= 30
+        elif aid == "meals_10": cond = n_meals >= 10
+        elif aid == "exercises_10": cond = n_exercises >= 10
+        elif aid == "water_goal_5": cond = water_goal_days >= 5
+        elif aid == "weight_loss_5kg": cond = weight_loss >= 5
+        unlocked.append({**a, "unlocked": cond})
+
+    xp = sum(a["xp"] for a in unlocked if a["unlocked"])
+    # Level curve: level = floor(sqrt(xp/50)) + 1, next req = 50 * level^2
+    level = int((xp / 50) ** 0.5) + 1
+    next_level_xp = 50 * level * level
+    prev_level_xp = 50 * (level - 1) * (level - 1)
+    lvl_progress = (xp - prev_level_xp) / max(1, next_level_xp - prev_level_xp)
+
+    # Simple leaderboard: users with most achievements unlocked (self-scoped for demo — top 5)
+    return {
+        "xp": xp,
+        "level": level,
+        "next_level_xp": next_level_xp,
+        "level_progress_pct": round(lvl_progress * 100, 1),
+        "streak": streak,
+        "achievements": unlocked,
+        "stats": {
+            "weights": n_weights, "meals": n_meals, "exercises": n_exercises,
+            "photos": n_photos, "water_goal_days": water_goal_days, "weight_loss_kg": round(weight_loss, 1),
+        },
+        "challenges": [
+            {"id": "c_water", "title": "Hidratação em dia", "desc": "Bata a meta de água hoje", "reward_xp": 20,
+             "done": by_date.get(today_iso(), 0) >= water_goal},
+            {"id": "c_meal", "title": "3 refeições", "desc": "Registre 3 refeições hoje", "reward_xp": 25,
+             "done": await db.meals.count_documents({"user_id": uid, "date": today_iso()}) >= 3},
+            {"id": "c_move", "title": "Se mexa!", "desc": "20 min de exercício hoje", "reward_xp": 30,
+             "done": bool(await db.exercises.find_one({"user_id": uid, "date": today_iso(), "duration_min": {"$gte": 20}}))},
+        ],
+    }
+
+
+async def _compute_user_xp(uid: str) -> tuple[int, int, int]:
+    """Return (xp, level, streak) for a given user id — used for leaderboard."""
+    n_w = await db.weights.count_documents({"user_id": uid})
+    n_m = await db.meals.count_documents({"user_id": uid})
+    n_e = await db.exercises.count_documents({"user_id": uid})
+    n_p = await db.photos.count_documents({"user_id": uid})
+    streak = await _compute_streak(uid)
+    xp = 25  # first_step (registered)
+    if n_w >= 1: xp += 20
+    if n_m >= 1: xp += 15
+    if n_e >= 1: xp += 30
+    if n_p >= 1: xp += 25
+    if streak >= 3: xp += 40
+    if streak >= 7: xp += 100
+    if streak >= 30: xp += 300
+    if n_m >= 10: xp += 50
+    if n_e >= 10: xp += 60
+    level = int((xp / 50) ** 0.5) + 1
+    return xp, level, streak
+
+
+@api.get("/gamification/leaderboard")
+async def leaderboard(user: dict = Depends(current_user), limit: int = 20):
+    """Global ranking by XP — computed on-the-fly (fine for demo scale)."""
+    users = await db.users.find(
+        {}, {"_id": 0, "user_id": 1, "name": 1, "photo_base64": 1}
+    ).to_list(300)
+    entries: list[dict] = []
+    for u in users:
+        uid = u.get("user_id")
+        if not uid:
+            continue
+        xp, level, streak = await _compute_user_xp(uid)
+        entries.append({
+            "user_id": uid,
+            "name": u.get("name") or "Anônimo",
+            "avatar": u.get("photo_base64"),
+            "xp": xp,
+            "level": level,
+            "streak": streak,
+            "is_me": uid == user["user_id"],
+        })
+    entries.sort(key=lambda e: (-e["xp"], -e["streak"]))
+    for i, e in enumerate(entries):
+        e["rank"] = i + 1
+    my_rank = next((e["rank"] for e in entries if e["is_me"]), None)
+    return {"items": entries[:limit], "my_rank": my_rank, "total_users": len(entries)}
+
+
+# ==================== Módulo 17: Comunidade ====================
+class PostIn(BaseModel):
+    text: str
+    kind: Optional[Literal["update", "recipe", "workout", "photo"]] = "update"
+    image_base64: Optional[str] = None
+
+
+class CommentIn(BaseModel):
+    text: str
+
+
+@api.post("/community/posts")
+async def create_post(payload: PostIn, user: dict = Depends(current_user)):
+    post = {
+        "id": new_id("post"),
+        "user_id": user["user_id"],
+        "author_name": user.get("name") or "Anônimo",
+        "author_avatar": user.get("photo_base64"),
+        "text": payload.text.strip(),
+        "kind": payload.kind or "update",
+        "image_base64": payload.image_base64,
+        "likes": [],
+        "comments_count": 0,
+        "created_at": now_utc().isoformat(),
+    }
+    if not post["text"] and not post["image_base64"]:
+        raise HTTPException(400, "Post vazio")
+    await db.posts.insert_one(post)
+    return {k: v for k, v in post.items() if k != "_id"}
+
+
+@api.get("/community/posts")
+async def list_posts(kind: Optional[str] = None, limit: int = 30):
+    q: dict = {}
+    if kind and kind != "all":
+        q["kind"] = kind
+    items = await db.posts.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return {"items": items}
+
+
+@api.post("/community/posts/{post_id}/like")
+async def toggle_like(post_id: str, user: dict = Depends(current_user)):
+    p = await db.posts.find_one({"id": post_id}, {"_id": 0, "likes": 1})
+    if not p:
+        raise HTTPException(404, "Post não encontrado")
+    likes = p.get("likes") or []
+    uid = user["user_id"]
+    if uid in likes:
+        await db.posts.update_one({"id": post_id}, {"$pull": {"likes": uid}})
+        return {"liked": False, "count": len(likes) - 1}
+    await db.posts.update_one({"id": post_id}, {"$addToSet": {"likes": uid}})
+    return {"liked": True, "count": len(likes) + 1}
+
+
+@api.post("/community/posts/{post_id}/comments")
+async def add_comment(post_id: str, payload: CommentIn, user: dict = Depends(current_user)):
+    txt = payload.text.strip()
+    if not txt: raise HTTPException(400, "Comentário vazio")
+    c = {
+        "id": new_id("cmt"),
+        "post_id": post_id,
+        "user_id": user["user_id"],
+        "author_name": user.get("name") or "Anônimo",
+        "text": txt,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.comments.insert_one(c)
+    await db.posts.update_one({"id": post_id}, {"$inc": {"comments_count": 1}})
+    return {k: v for k, v in c.items() if k != "_id"}
+
+
+@api.get("/community/posts/{post_id}/comments")
+async def list_comments(post_id: str):
+    items = await db.comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
+    return {"items": items}
+
+
+@api.delete("/community/posts/{post_id}")
+async def delete_post(post_id: str, user: dict = Depends(current_user)):
+    await db.posts.delete_one({"id": post_id, "user_id": user["user_id"]})
+    await db.comments.delete_many({"post_id": post_id})
+    return {"ok": True}
+
+
+# ==================== Módulos 18-20: Profissionais & Compartilhamento ====================
+class ShareIn(BaseModel):
+    professional_type: Literal["nutritionist", "personal", "doctor"]
+    professional_name: Optional[str] = None
+    professional_email: Optional[str] = None
+
+
+@api.post("/professionals/share")
+async def create_share(payload: ShareIn, user: dict = Depends(current_user)):
+    token = uuid.uuid4().hex[:20]
+    entry = {
+        "id": new_id("share"),
+        "token": token,
+        "user_id": user["user_id"],
+        "professional_type": payload.professional_type,
+        "professional_name": payload.professional_name,
+        "professional_email": payload.professional_email,
+        "created_at": now_utc().isoformat(),
+        "expires_at": (now_utc() + timedelta(days=30)).isoformat(),
+    }
+    await db.shares.insert_one(entry)
+    return {**{k: v for k, v in entry.items() if k != "_id"}, "share_url": f"/report/{token}"}
+
+
+@api.get("/professionals/shares")
+async def list_shares(user: dict = Depends(current_user)):
+    items = await db.shares.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return {"items": items}
+
+
+@api.delete("/professionals/shares/{share_id}")
+async def revoke_share(share_id: str, user: dict = Depends(current_user)):
+    await db.shares.delete_one({"id": share_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+async def _build_report_data(uid: str) -> dict:
+    user = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    if not user:
+        return {}
+    weights = await db.weights.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(30)
+    meals = await db.meals.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(50)
+    exercises = await db.exercises.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(30)
+    sleeps = await db.sleeps.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(14)
+    return {"user": user, "weights": weights, "meals": meals, "exercises": exercises, "sleeps": sleeps}
+
+
+@app.get("/report/{token}", include_in_schema=False)
+async def public_report(token: str):
+    from fastapi.responses import HTMLResponse
+    share = await db.shares.find_one({"token": token}, {"_id": 0})
+    if not share:
+        return HTMLResponse("<h1>Relatório não encontrado</h1>", status_code=404)
+    data = await _build_report_data(share["user_id"])
+    if not data:
+        return HTMLResponse("<h1>Sem dados</h1>", status_code=404)
+    u = data["user"]
+    latest_w = data["weights"][0]["weight_kg"] if data["weights"] else "—"
+    height = u.get("height_cm") or 0
+    bmi = round(data["weights"][0]["weight_kg"] / ((height / 100) ** 2), 1) if data["weights"] and height else "—"
+    ptype = share.get("professional_type") or "doctor"
+    # Determine visible sections by professional profile:
+    # nutritionist -> peso + refeições
+    # personal     -> peso + medidas + exercícios
+    # doctor       -> tudo (peso, medidas, refeições, exercícios, sono)
+    show_weights = True
+    show_meals = ptype in ("nutritionist", "doctor")
+    show_exercises = ptype in ("personal", "doctor")
+    show_sleep = ptype == "doctor"
+    ptype_label = {"nutritionist": "Nutricionista", "personal": "Personal Trainer", "doctor": "Médico"}.get(ptype, ptype)
+
+    def rows(items: list, tds: list[str]) -> str:
+        out = []
+        for it in items:
+            cells = "".join(f"<td>{it.get(k, '') if it.get(k) is not None else ''}</td>" for k in tds)
+            out.append(f"<tr>{cells}</tr>")
+        return "\n".join(out)
+
+    section_weights = f"""
+  <h2>Evolução do peso (últimos 30 registros)</h2>
+  <table><thead><tr><th>Data</th><th>Peso (kg)</th><th>Cintura</th><th>Quadril</th><th>Gordura %</th></tr></thead>
+    <tbody>{rows(data['weights'], ['date','weight_kg','waist_cm','hip_cm','body_fat_pct'])}</tbody></table>""" if show_weights else ""
+    section_meals = f"""
+  <h2>Refeições recentes</h2>
+  <table><thead><tr><th>Data</th><th>Refeição</th><th>Nome</th><th>Kcal</th><th>P</th><th>C</th><th>G</th></tr></thead>
+    <tbody>{rows(data['meals'][:20], ['date','meal_type','name','calories','protein_g','carbs_g','fat_g'])}</tbody></table>""" if show_meals else ""
+    section_exercises = f"""
+  <h2>Exercícios</h2>
+  <table><thead><tr><th>Data</th><th>Nome</th><th>Categoria</th><th>Min</th><th>Kcal</th></tr></thead>
+    <tbody>{rows(data['exercises'][:20], ['date','name','category','duration_min','calories_burned'])}</tbody></table>""" if show_exercises else ""
+    section_sleep = f"""
+  <h2>Sono</h2>
+  <table><thead><tr><th>Data</th><th>Horas</th><th>Qualidade</th></tr></thead>
+    <tbody>{rows(data['sleeps'], ['date','hours','quality'])}</tbody></table>""" if show_sleep else ""
+
+    html = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Relatório VitaTracker — {u.get('name', 'Usuário')}</title>
+<style>
+:root {{ color-scheme: light; }}
+body {{ font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#0F1110; background:#F5F6F4; margin:0; padding:24px; }}
+.wrap {{ max-width: 780px; margin: 0 auto; background:#fff; border-radius:16px; padding:32px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }}
+h1 {{ margin:0 0 4px 0; font-size:26px; letter-spacing:-0.5px; }}
+.sub {{ color:#83877F; font-size:13px; margin-bottom:24px; }}
+.hero {{ background:#0E100F; color:#F5F6F4; border-radius:16px; padding:20px; margin-bottom:24px; display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }}
+.hero div span {{ display:block; font-size:12px; opacity:.7; }}
+.hero div strong {{ display:block; font-size:22px; font-weight:700; color:#C6F14B; margin-top:2px; }}
+h2 {{ margin: 24px 0 12px; font-size:16px; color:#26301A; }}
+table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+th, td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #EDEFEB; }}
+th {{ font-weight:600; color:#83877F; text-transform:uppercase; letter-spacing:.5px; font-size:11px; }}
+.badge {{ display:inline-block; padding:4px 10px; border-radius:99px; background:#C6F14B; color:#26301A; font-weight:700; font-size:11px; margin-left:8px; }}
+.foot {{ margin-top:24px; padding-top:16px; border-top:1px solid #EDEFEB; color:#83877F; font-size:12px; }}
+@media print {{ body {{ background:#fff; padding:0; }} .wrap {{ box-shadow:none; }} }}
+</style></head><body>
+<div class="wrap">
+  <h1>Relatório de Saúde <span class="badge">{ptype_label}</span></h1>
+  <div class="sub">Paciente: <strong>{u.get('name','')}</strong> • {u.get('email','')} • Gerado em {now_utc().strftime('%d/%m/%Y')}</div>
+  <div class="hero">
+    <div><span>Peso atual</span><strong>{latest_w} kg</strong></div>
+    <div><span>IMC</span><strong>{bmi}</strong></div>
+    <div><span>Altura</span><strong>{u.get('height_cm','—')} cm</strong></div>
+    <div><span>Objetivo</span><strong style="font-size:14px;">{u.get('goal','—')}</strong></div>
+  </div>
+  {section_weights}
+  {section_meals}
+  {section_exercises}
+  {section_sleep}
+  <div class="foot">Relatório gerado por VitaTracker — Este documento contém dados sensíveis. Compartilhamento válido por 30 dias.</div>
+</div></body></html>"""
+    return HTMLResponse(html)
+
+
+@api.get("/report/pdf")
+async def report_pdf(user: dict = Depends(current_user), type: Optional[str] = "all"):
+    """Generates a PDF summary of user data. `type` filters sections:
+    all | nutritionist | personal | doctor. Returns application/pdf.
+    """
+    from fastapi.responses import Response
+    from fpdf import FPDF
+
+    data = await _build_report_data(user["user_id"])
+    if not data:
+        raise HTTPException(404, "Sem dados")
+    u = data["user"]
+    latest_w = data["weights"][0]["weight_kg"] if data["weights"] else None
+    height = u.get("height_cm") or 0
+    bmi = round(latest_w / ((height / 100) ** 2), 1) if latest_w and height else None
+
+    ptype = (type or "all").lower()
+    if ptype not in ("all", "nutritionist", "personal", "doctor"):
+        ptype = "all"
+    show_weights = True
+    show_meals = ptype in ("all", "nutritionist", "doctor")
+    show_exercises = ptype in ("all", "personal", "doctor")
+    show_sleep = ptype in ("all", "doctor")
+    ptype_label = {"all": "Completo", "nutritionist": "Nutricionista",
+                   "personal": "Personal Trainer", "doctor": "Medico"}[ptype]
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(38, 48, 26)
+    pdf.cell(0, 10, f"VitaTracker - Relatorio ({ptype_label})", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 6, f"Paciente: {u.get('name','')} - {u.get('email','')}", ln=True)
+    pdf.cell(0, 6, f"Gerado em: {now_utc().strftime('%d/%m/%Y')}", ln=True)
+    pdf.ln(6)
+
+    # Hero stats
+    pdf.set_fill_color(14, 16, 15)
+    pdf.set_text_color(198, 241, 75)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 12, f"  Peso: {latest_w or '-'} kg  |  IMC: {bmi or '-'}  |  Altura: {u.get('height_cm','-')} cm  |  Objetivo: {u.get('goal','-')}",
+             ln=True, fill=True)
+    pdf.ln(6)
+
+    def section(title: str, rows: list[list[str]], headers: list[str], widths: list[int]):
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(38, 48, 26)
+        pdf.cell(0, 8, title, ln=True)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(120, 120, 120)
+        for h, w in zip(headers, widths):
+            pdf.cell(w, 6, h, border="B")
+        pdf.ln(6)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(30, 30, 30)
+        for r in rows:
+            for cell, w in zip(r, widths):
+                pdf.cell(w, 5, str(cell)[:22], border=0)
+            pdf.ln(5)
+        pdf.ln(4)
+
+    if show_weights:
+        section("Evolucao do peso",
+                [[w.get("date", ""), w.get("weight_kg", ""), w.get("body_fat_pct") or "-"] for w in data["weights"][:15]],
+                ["Data", "Peso (kg)", "Gordura %"], [40, 40, 40])
+    if show_meals:
+        section("Refeicoes recentes",
+                [[m.get("date", ""), m.get("name", ""), m.get("calories", "")] for m in data["meals"][:15]],
+                ["Data", "Refeicao", "Kcal"], [30, 90, 30])
+    if show_exercises:
+        section("Exercicios",
+                [[e.get("date", ""), e.get("name", ""), e.get("duration_min", ""), e.get("calories_burned", "")]
+                 for e in data["exercises"][:15]],
+                ["Data", "Exercicio", "Min", "Kcal"], [30, 70, 25, 30])
+    if show_sleep:
+        section("Sono",
+                [[s.get("date", ""), s.get("hours", ""), s.get("quality", "")] for s in data["sleeps"][:10]],
+                ["Data", "Horas", "Qualidade"], [40, 30, 40])
+
+    pdf_bytes = bytes(pdf.output())
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="vitatracker-{ptype}-{u.get("name","user").replace(" ", "_")}.pdf"'},
+    )
+
+
+
+
 # -------------------- Steps history (Module 13) --------------------
 @api.get("/steps")
 async def list_steps(user: dict = Depends(current_user), days: int = 30):

@@ -101,3 +101,122 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Modules 16-20: Gamification (XP, Levels, Achievements, Global Ranking),
+  Community (Feed with likes and comments), and Professional PDF sharing
+  (separated by professional profile + complete report).
+
+backend:
+  - task: "Gamification leaderboard endpoint"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Added /api/gamification/leaderboard computing XP per user (streak + activity counts), sorts, returns top 20 + my_rank."
+  - task: "Report PDF filtered by professional type"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "GET /api/report/pdf?type=all|nutritionist|personal|doctor. Public HTML /report/{token} filters sections based on share.professional_type."
+  - task: "Community CRUD (posts, likes, comments)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Endpoints already present: POST /api/community/posts, GET list (kind filter), like toggle, comments GET/POST, DELETE post."
+
+frontend:
+  - task: "Gamification screen (achievements + ranking)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/gamification.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Screen with hero (level, xp bar, streak), daily challenges, tabs Conquistas/Ranking. Manually verified via screenshot — renders correctly."
+  - task: "Community feed screen (posts, filter, likes, comments)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/community.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Modal composer with kind chips, feed with filter chips, optimistic like toggle, comments in slide-up modal with input bar. Manually verified: post created + rendered."
+  - task: "Professional share screen (PDF grid + share links)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/professional-share.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "4-card PDF grid (Completo/Nutri/Personal/Doctor), download via fetch+blob on web, Sharing.shareAsync on native. Share links list with copy/open/revoke actions. Modal to create new link."
+  - task: "Home dashboard CTAs for M16-20"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Added Conquistas + Comunidade paired CTA + full-width Compartilhar CTA below AI Coach row."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.2"
+  test_sequence: 2
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Gamification leaderboard endpoint"
+    - "Report PDF filtered by professional type"
+    - "Gamification screen (achievements + ranking)"
+    - "Community feed screen (posts, filter, likes, comments)"
+    - "Professional share screen (PDF grid + share links)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Modules 16-20 built. Backend already had gamification + community + share endpoints; added:
+      (1) /api/gamification/leaderboard for global ranking,
+      (2) /api/report/pdf now accepts `type` query param filtering sections per professional,
+      (3) public /report/{token} HTML filters sections by share.professional_type.
+      Frontend added 3 screens: gamification.tsx, community.tsx, professional-share.tsx, plus Home CTAs.
+      Test credentials: ana@example.com / secret123 (in /app/memory/test_credentials.md).
+      Please validate:
+        - GET /api/gamification (already existed) still returns xp/level/achievements/challenges
+        - GET /api/gamification/leaderboard returns items + my_rank + total_users
+        - Community: create post → list → toggle like (twice, idempotent per user) → add comment → list comments → delete post
+        - GET /api/report/pdf and /api/report/pdf?type=nutritionist return application/pdf bytes
+        - Frontend flows: from Home, navigate to Gamification (toggle tabs), Comunidade (create/like/comment post), Compartilhar (create link + copy)

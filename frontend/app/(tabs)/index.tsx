@@ -233,6 +233,33 @@ export default function Home() {
           </Pressable>
         </View>
 
+        {/* Gamification + Community + Share */}
+        <View style={s.ctaRow}>
+          <Pressable style={s.gamiCta} onPress={() => router.push('/gamification')} testID="home-gami-cta">
+            <View style={s.gamiIcon}><Ionicons name="trophy" size={22} color={colors.brandDark} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.gamiTitle}>Conquistas</Text>
+              <Text style={s.gamiSub}>XP, ranking global</Text>
+            </View>
+          </Pressable>
+          <Pressable style={s.commCta} onPress={() => router.push('/community')} testID="home-community-cta">
+            <View style={s.commIcon}><Ionicons name="people" size={22} color={colors.brandPrimary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.commTitle}>Comunidade</Text>
+              <Text style={s.commSub}>Feed & posts</Text>
+            </View>
+          </Pressable>
+        </View>
+
+        <Pressable style={s.shareCta} onPress={() => router.push('/professional-share')} testID="home-share-cta">
+          <View style={s.shareIconWrap}><Ionicons name="document-text" size={20} color={colors.brandDark} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.shareTitle}>Compartilhar com profissionais</Text>
+            <Text style={s.shareSub}>PDF ou link para Nutri, Personal e Médico</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
         {/* Photos strip */}
         <View style={s.section}>
           <View style={s.sectionHead}>
@@ -377,6 +404,20 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   aiIcon2: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(198,241,75,0.15)', alignItems: 'center', justifyContent: 'center' },
   aiTitle2: { color: colors.onSurfaceInverse, fontWeight: '700', fontSize: 14 },
   aiSub2: { color: colors.onSurfaceInverse, opacity: 0.7, fontSize: 11, marginTop: 1 },
+
+  gamiCta: { flex: 1, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.tintButter, padding: spacing.md, borderRadius: radius.lg },
+  gamiIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },
+  gamiTitle: { color: colors.onTint, fontWeight: '700', fontSize: 14 },
+  gamiSub: { color: colors.onTint, opacity: 0.7, fontSize: 11, marginTop: 1 },
+  commCta: { flex: 1, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.tintLavender, padding: spacing.md, borderRadius: radius.lg },
+  commIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(198,241,75,0.18)', alignItems: 'center', justifyContent: 'center' },
+  commTitle: { color: colors.onTint, fontWeight: '700', fontSize: 14 },
+  commSub: { color: colors.onTint, opacity: 0.7, fontSize: 11, marginTop: 1 },
+
+  shareCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, padding: spacing.md, borderRadius: radius.lg },
+  shareIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
+  shareTitle: { color: colors.onSurface, fontWeight: '700', ...typography.bodyStrong },
+  shareSub: { color: colors.muted, ...typography.small, marginTop: 2 },
 
   fastCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.lg },
   fastIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },

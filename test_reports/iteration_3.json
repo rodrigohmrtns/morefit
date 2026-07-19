@@ -1,0 +1,57 @@
+{
+  "summary": "Tested VitaTracker Modules 16-20 (Gamification + Community + Professional PDF sharing). Backend: 14/16 pytest cases pass. Two failures point to a routing bug: the public HTML report endpoint '/report/{token}' is defined at the FastAPI root (outside '/api'), but the K8s ingress only forwards '/api/*' to the backend on port 8001. Non-'/api' paths (including '/report/…') resolve to the Expo web SPA, so any 'share_url' returned by POST /api/professionals/share (e.g. /report/abcd) is unreachable via the public preview domain. The endpoint works when hit directly on localhost:8001. Frontend (Expo mobile web preview): login (ana@example.com/secret123) works, and all requested testIDs are present and functional — home-gami-cta / home-community-cta / home-share-cta, gami-tab-Conquistas / gami-tab-Ranking (ranking shows 'Você está em #1 de 5 usuários'), community-filter-* chips, community composer + like + comment flows, and professional-share (4 PDF cards + create link modal + copy button). Minor React Native deprecation warnings observed (shadow* style props, pointerEvents prop) but non-blocking.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /report/{token}",
+        "issue": "Endpoint is registered on the root FastAPI app (no /api prefix). K8s ingress forwards only '/api/*' to backend:8001, so this URL resolves to the Expo web SPA (returns the frontend HTML) when accessed via the public EXPO_PUBLIC_BACKEND_URL. This breaks the 'share_url' returned by POST /api/professionals/share for real recipients. Verified: works on http://localhost:8001/report/{token}, does NOT work on https://fitpro-ecosystem-1.preview.emergentagent.com/report/{token}. Fix: move to '/api/reports/public/{token}' and update share_url and any frontend openLink().",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "professional-share -> open link (share-open-{id})",
+        "issue": "Since backend '/report/{token}' is unreachable through the public domain, tapping 'abrir' on any share link will open the Expo app instead of the report. Depends on the backend fix above.",
+        "affected_testIDs": ["share-open-{id}"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "Multiple screens (via web preview warnings)",
+        "issue": "Deprecated style prop 'shadow*' used — warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Appears repeatedly on Home, Gamification, Community, Professional-Share screens."
+      },
+      {
+        "component": "Some Pressable / View",
+        "issue": "Deprecated prop: 'props.pointerEvents is deprecated. Use style.pointerEvents' (observed on onboarding/home)."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_modules_16_20.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Move public HTML report route from '@app.get(\"/report/{token}\")' to '@api.get(\"/reports/public/{token}\")' (i.e. under /api). Update share_url in POST /api/professionals/share to return '/api/reports/public/{token}' (or ${EXPO_PUBLIC_BACKEND_URL}/api/reports/public/{token}) and update frontend openLink() in professional-share.tsx accordingly.",
+    "Migrate 'shadow*' StyleSheet props to 'boxShadow' (react-native-web / RN 0.76+) across new screens (community.tsx, gamification.tsx, professional-share.tsx and any shared style files).",
+    "Replace deprecated 'pointerEvents' prop usage with 'style.pointerEvents'."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1600 lines — consider splitting into modules (auth, food, gamification, community, professionals) for maintainability (>700 line rule).",
+    "leaderboard() computes XP for every user on every request (O(N * per-user Mongo calls)); acceptable for demo, but add TODO for caching once user count grows.",
+    "public_report HTML interpolates user-controlled fields (name, email) directly into HTML without escaping — low risk since auth-scoped, but consider html.escape() for safety."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_modules_16_20.py (new)"
+  ],
+  "success_rate": {"backend": "87.5%", "frontend": "100%"},
+  "seed_data_creation": "Login used existing seeded user ana@example.com. Test created and cleaned up a community post; created shares (nutritionist/personal/doctor) — one 'Dra. Marina' share is left in DB from the frontend flow (visible in screenshots). Not disruptive.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After main agent fixes the /report/{token} routing (move under /api), re-run backend tests test_public_report_html_nutritionist and test_public_report_doctor_has_sleep in /app/backend/tests/test_modules_16_20.py, and re-check share-open-{id} flow on /professional-share.",
+  "rca_of_issue": "Root cause: FastAPI route '@app.get(\"/report/{token}\")' is registered on the base app (not the '/api' APIRouter). The Kubernetes ingress in this preview environment routes '/api/*' to backend:8001 and everything else to Expo:3000. Therefore requests to https://<preview>/report/<token> land on the Expo web bundle and return the SPA HTML, not the report. Reproduction: 1) POST /api/professionals/share returns share_url=/report/<token>. 2) GET https://<preview>/report/<token> returns text starting with '<!DOCTYPE html><html lang=\"en\">…<title>VitaTracker</title>' (the Expo shell). 3) Same GET on http://localhost:8001/report/<token> returns the correct '<!doctype html><html lang=\"pt-BR\">' report with 'Nutricionista' badge. Mitigation: relocate the route to any path starting with '/api' (e.g. '/api/reports/public/{token}') so ingress forwards it to backend."
+}
