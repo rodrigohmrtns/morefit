@@ -9,13 +9,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/src/theme';
+import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
-type Goal = 'lose' | 'maintain' | 'gain';
+type Goal = 'lose' | 'maintain' | 'gain' | 'improve_health';
 type Activity = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 type Gender = 'male' | 'female' | 'other';
 
-const GOAL_LABEL: Record<Goal, string> = { lose: 'Perder peso', maintain: 'Manter peso', gain: 'Ganhar massa' };
+const GOAL_LABEL: Record<Goal, string> = {
+  lose: 'Perder peso', maintain: 'Manter peso', gain: 'Ganhar massa', improve_health: 'Melhorar saúde',
+};
+const GOAL_ICON: Record<Goal, any> = {
+  lose: 'trending-down', maintain: 'remove', gain: 'trending-up', improve_health: 'heart',
+};
 const ACTIVITY_LABEL: Record<Activity, string> = {
   sedentary: 'Sedentário', light: 'Leve', moderate: 'Moderado', active: 'Ativo', very_active: 'Muito ativo',
 };
@@ -25,6 +30,8 @@ const ACT_FACTOR: Record<Activity, number> = { sedentary: 1.2, light: 1.375, mod
 
 export default function Setup() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { user, refresh } = useAuth();
   const [step, setStep] = useState(0);
   const [gender, setGender] = useState<Gender>('male');
@@ -40,7 +47,6 @@ export default function Setup() {
     const a = parseFloat(age) || 30;
     const h = parseFloat(height) || 170;
     const w = parseFloat(weight) || 75;
-    // Mifflin-St Jeor
     const bmr = gender === 'female'
       ? 10 * w + 6.25 * h - 5 * a - 161
       : 10 * w + 6.25 * h - 5 * a + 5;
@@ -53,20 +59,20 @@ export default function Setup() {
     setSaving(true);
     try {
       const birthYear = new Date().getFullYear() - (parseInt(age, 10) || 30);
+      // default 90 days from now as target date
+      const td = new Date(); td.setDate(td.getDate() + 90);
       await api('/profile', {
         method: 'PUT',
         body: {
-          gender,
-          birth_date: `${birthYear}-01-01`,
+          gender, birth_date: `${birthYear}-01-01`,
           height_cm: parseFloat(height),
           starting_weight_kg: parseFloat(weight),
           goal_weight_kg: parseFloat(target),
-          goal,
-          activity_level: activity,
+          goal, activity_level: activity,
           daily_calorie_goal: calorieGoal,
+          target_date: td.toISOString().slice(0, 10),
         },
       });
-      // also register initial weight
       await api('/weight', { method: 'POST', body: { weight_kg: parseFloat(weight) } });
       await refresh();
       router.replace('/(tabs)');
@@ -75,86 +81,87 @@ export default function Setup() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.header}>
-          <Text style={styles.step}>Passo {step + 1} de 4</Text>
-          <View style={styles.progress}>
-            <View style={[styles.progressFill, { width: `${((step + 1) / 4) * 100}%` }]} />
+        <View style={s.header}>
+          <Text style={s.step}>Passo {step + 1} de 4</Text>
+          <View style={s.progress}>
+            <View style={[s.progressFill, { width: `${((step + 1) / 4) * 100}%` }]} />
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
           {step === 0 && (
-            <View style={styles.section}>
-              <Text style={styles.title}>Olá, {user?.name?.split(' ')[0]}! 👋</Text>
-              <Text style={styles.sub}>Vamos personalizar o VitaTracker para você.</Text>
-              <Text style={styles.label}>Sexo</Text>
-              <View style={styles.chipsRow}>
+            <View style={s.section}>
+              <Text style={s.title}>Olá, {user?.name?.split(' ')[0]}! 👋</Text>
+              <Text style={s.sub}>Vamos personalizar o VitaTracker para você.</Text>
+              <Text style={s.label}>Sexo</Text>
+              <View style={s.chipsRow}>
                 {(Object.keys(GENDER_LABEL) as Gender[]).map(g => (
-                  <Chip key={g} label={GENDER_LABEL[g]} active={gender === g} onPress={() => setGender(g)} testID={`setup-gender-${g}`} />
+                  <Chip key={g} colors={colors} label={GENDER_LABEL[g]} active={gender === g} onPress={() => setGender(g)} testID={`setup-gender-${g}`} />
                 ))}
               </View>
-              <Text style={styles.label}>Idade</Text>
-              <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="number-pad" testID="setup-age" />
+              <Text style={s.label}>Idade</Text>
+              <TextInput style={s.input} value={age} onChangeText={setAge} keyboardType="number-pad" testID="setup-age" placeholderTextColor={colors.muted} />
             </View>
           )}
           {step === 1 && (
-            <View style={styles.section}>
-              <Text style={styles.title}>Suas medidas</Text>
-              <Text style={styles.sub}>Usamos para calcular seu metabolismo basal.</Text>
-              <Text style={styles.label}>Altura (cm)</Text>
-              <TextInput style={styles.input} value={height} onChangeText={setHeight} keyboardType="decimal-pad" testID="setup-height" />
-              <Text style={styles.label}>Peso atual (kg)</Text>
-              <TextInput style={styles.input} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" testID="setup-weight" />
-              <Text style={styles.label}>Peso meta (kg)</Text>
-              <TextInput style={styles.input} value={target} onChangeText={setTarget} keyboardType="decimal-pad" testID="setup-target" />
+            <View style={s.section}>
+              <Text style={s.title}>Suas medidas</Text>
+              <Text style={s.sub}>Usamos para calcular seu metabolismo basal.</Text>
+              <Text style={s.label}>Altura (cm)</Text>
+              <TextInput style={s.input} value={height} onChangeText={setHeight} keyboardType="decimal-pad" testID="setup-height" placeholderTextColor={colors.muted} />
+              <Text style={s.label}>Peso atual (kg)</Text>
+              <TextInput style={s.input} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" testID="setup-weight" placeholderTextColor={colors.muted} />
+              <Text style={s.label}>Peso meta (kg)</Text>
+              <TextInput style={s.input} value={target} onChangeText={setTarget} keyboardType="decimal-pad" testID="setup-target" placeholderTextColor={colors.muted} />
             </View>
           )}
           {step === 2 && (
-            <View style={styles.section}>
-              <Text style={styles.title}>Seu objetivo</Text>
-              <Text style={styles.sub}>Isso define seu plano diário.</Text>
+            <View style={s.section}>
+              <Text style={s.title}>Seu objetivo</Text>
+              <Text style={s.sub}>Isso define seu plano diário.</Text>
               {(Object.keys(GOAL_LABEL) as Goal[]).map(g => (
-                <OptionRow key={g} label={GOAL_LABEL[g]} active={goal === g} onPress={() => setGoal(g)} testID={`setup-goal-${g}`}
-                  icon={g === 'lose' ? 'trending-down' : g === 'gain' ? 'trending-up' : 'remove'} />
+                <OptionRow key={g} colors={colors} label={GOAL_LABEL[g]} active={goal === g} onPress={() => setGoal(g)}
+                  testID={`setup-goal-${g}`} icon={GOAL_ICON[g]} />
               ))}
-              <Text style={styles.label}>Nível de atividade</Text>
-              <View style={styles.chipsWrap}>
+              <Text style={s.label}>Nível de atividade</Text>
+              <View style={s.chipsWrap}>
                 {(Object.keys(ACTIVITY_LABEL) as Activity[]).map(a => (
-                  <Chip key={a} label={ACTIVITY_LABEL[a]} active={activity === a} onPress={() => setActivity(a)} testID={`setup-act-${a}`} />
+                  <Chip key={a} colors={colors} label={ACTIVITY_LABEL[a]} active={activity === a} onPress={() => setActivity(a)} testID={`setup-act-${a}`} />
                 ))}
               </View>
             </View>
           )}
           {step === 3 && (
-            <View style={styles.section}>
-              <Text style={styles.title}>Seu plano diário</Text>
-              <Text style={styles.sub}>Calculamos com base nas suas informações.</Text>
-              <View style={styles.summary}>
-                <SummaryRow icon="flame" label="Meta de calorias" value={`${calorieGoal} kcal`} />
-                <SummaryRow icon="water" label="Meta de água" value="2000 ml" />
-                <SummaryRow icon="footsteps" label="Meta de passos" value="8000 passos" />
-                <SummaryRow icon="fitness" label="Objetivo" value={GOAL_LABEL[goal]} />
+            <View style={s.section}>
+              <Text style={s.title}>Seu plano diário</Text>
+              <Text style={s.sub}>Calculamos com base nas suas informações.</Text>
+              <View style={s.summary}>
+                <SummaryRow colors={colors} icon="flame" label="Meta de calorias" value={`${calorieGoal} kcal`} />
+                <SummaryRow colors={colors} icon="water" label="Meta de água" value="2000 ml" />
+                <SummaryRow colors={colors} icon="footsteps" label="Meta de passos" value="8000 passos" />
+                <SummaryRow colors={colors} icon="fitness" label="Objetivo" value={GOAL_LABEL[goal]} />
+                <SummaryRow colors={colors} icon="calendar" label="Meta em" value="90 dias" />
               </View>
             </View>
           )}
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={s.footer}>
           {step > 0 && (
-            <Pressable onPress={() => setStep(s => s - 1)} style={styles.secondaryBtn} testID="setup-back">
-              <Text style={styles.secondaryTxt}>Voltar</Text>
+            <Pressable onPress={() => setStep(x => x - 1)} style={s.secondaryBtn} testID="setup-back">
+              <Text style={s.secondaryTxt}>Voltar</Text>
             </Pressable>
           )}
           <Pressable
-            onPress={() => (step < 3 ? setStep(s => s + 1) : submit())}
-            style={styles.primaryBtn}
+            onPress={() => (step < 3 ? setStep(x => x + 1) : submit())}
+            style={s.primaryBtn}
             disabled={saving}
             testID="setup-next"
           >
-            {saving ? <ActivityIndicator color="#fff" /> : (
-              <Text style={styles.primaryTxt}>{step < 3 ? 'Continuar' : 'Concluir'}</Text>
+            {saving ? <ActivityIndicator color={colors.onBrandPrimary} /> : (
+              <Text style={s.primaryTxt}>{step < 3 ? 'Continuar' : 'Concluir'}</Text>
             )}
           </Pressable>
         </View>
@@ -163,34 +170,31 @@ export default function Setup() {
   );
 }
 
-function Chip({ label, active, onPress, testID }: any) {
+function Chip({ colors, label, active, onPress, testID }: any) {
+  const s = makeStyles(colors);
   return (
-    <Pressable
-      onPress={onPress}
-      testID={testID}
-      style={[styles.chip, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary }]}
-    >
-      <Text style={[styles.chipTxt, active && { color: colors.brandDark, fontWeight: '700' }]}>{label}</Text>
+    <Pressable onPress={onPress} testID={testID}
+      style={[s.chip, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandPrimary }]}>
+      <Text style={[s.chipTxt, active && { color: colors.onBrandPrimary, fontWeight: '700' }]}>{label}</Text>
     </Pressable>
   );
 }
-function OptionRow({ icon, label, active, onPress, testID }: any) {
+function OptionRow({ colors, icon, label, active, onPress, testID }: any) {
+  const s = makeStyles(colors);
   return (
-    <Pressable
-      onPress={onPress}
-      testID={testID}
-      style={[styles.optionRow, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary }]}
-    >
-      <Ionicons name={icon} size={22} color={active ? colors.brandDark : colors.onSurfaceSecondary} />
-      <Text style={[styles.optionTxt, active && { color: colors.brandDark, fontWeight: '700' }]}>{label}</Text>
+    <Pressable onPress={onPress} testID={testID}
+      style={[s.optionRow, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary }]}>
+      <Ionicons name={icon} size={22} color={active ? colors.onBrandTertiary : colors.onSurfaceSecondary} />
+      <Text style={[s.optionTxt, active && { color: colors.onBrandTertiary, fontWeight: '700' }]}>{label}</Text>
       {active && <Ionicons name="checkmark-circle" size={22} color={colors.brandPrimary} style={{ marginLeft: 'auto' }} />}
     </Pressable>
   );
 }
-function SummaryRow({ icon, label, value }: any) {
+function SummaryRow({ colors, icon, label, value }: any) {
+  const s = makeStyles(colors);
   return (
-    <View style={styles.sumRow}>
-      <View style={styles.sumIcon}><Ionicons name={icon} size={20} color={colors.brandPrimary} /></View>
+    <View style={s.sumRow}>
+      <View style={s.sumIcon}><Ionicons name={icon} size={20} color={colors.brandDark} /></View>
       <View style={{ flex: 1 }}>
         <Text style={{ ...typography.caption, color: colors.muted }}>{label}</Text>
         <Text style={{ ...typography.headline, color: colors.onSurface }}>{value}</Text>
@@ -199,7 +203,7 @@ function SummaryRow({ icon, label, value }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, gap: spacing.sm },
   step: { ...typography.caption, color: colors.muted },
@@ -231,7 +235,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg,
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
   },
-  sumIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  sumIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
   footer: { flexDirection: 'row', gap: spacing.md, padding: spacing.xl, paddingTop: spacing.md },
   primaryBtn: { flex: 1, backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 16, alignItems: 'center' },
   primaryTxt: { color: colors.onBrandPrimary, fontSize: 16, fontWeight: '700' },

@@ -1,37 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import {
-  Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { colors, radius, shadow, spacing, typography } from '@/src/theme';
+import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Summary = {
   date: string;
   calories: { consumed: number; goal: number; burned: number };
   macros: { protein_g: number; carbs_g: number; fat_g: number };
   water: { total_ml: number; goal_ml: number };
-  weight: { weight_kg: number; date: string } | null;
+  weight: { current_kg: number | null; starting_kg: number | null; goal_kg: number | null };
+  bmi: number | null;
+  days_remaining: number | null;
+  steps: { count: number; goal: number };
+  sleep: { last_hours: number | null; goal_hours: number };
+  exercises: { count: number; minutes: number; burned: number };
   meals_count: number;
-  exercises_count: number;
+  photos: { id: string; date: string; weight_kg?: number }[];
+};
+
+const BMI_LABEL = (bmi: number) => {
+  if (bmi < 18.5) return 'Abaixo';
+  if (bmi < 25) return 'Saudável';
+  if (bmi < 30) return 'Sobrepeso';
+  return 'Obesidade';
 };
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [data, setData] = useState<Summary | null>(null);
+  const [quote, setQuote] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    try { const s = await api<Summary>('/dashboard/summary'); setData(s); } catch (e) { console.log(e); }
+    try {
+      const [sum, q] = await Promise.all([
+        api<Summary>('/dashboard/summary'),
+        api<{ quote: string }>('/motivation'),
+      ]);
+      setData(sum); setQuote(q.quote);
+    } catch (e) { console.log(e); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const kcalGoal = data?.calories.goal ?? user?.daily_calorie_goal ?? 2000;
@@ -44,110 +63,176 @@ export default function Home() {
   const waterGoal = data?.water.goal_ml ?? 2000;
   const waterPct = Math.min(100, (waterTotal / waterGoal) * 100);
 
+  const steps = data?.steps.count ?? 0;
+  const stepsGoal = data?.steps.goal ?? 8000;
+  const stepsPct = Math.min(100, (steps / stepsGoal) * 100);
+
   const addWater = async (amt: number) => {
     try { await api('/water', { method: 'POST', body: { amount_ml: amt } }); await load(); } catch {}
   };
+  const addSteps = async () => {
+    // quick prompt via +500 increments
+    const next = steps + 500;
+    try { await api('/steps', { method: 'POST', body: { steps: next } }); await load(); } catch {}
+  };
 
   return (
-    <View style={styles.root} testID="home-screen">
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
-        <View style={styles.header}>
+    <View style={s.root} testID="home-screen">
+      <SafeAreaView edges={['top']} style={s.headerSafe}>
+        <View style={s.header}>
           <View>
-            <Text style={styles.greeting}>Olá, {user?.name?.split(' ')[0] ?? 'você'}</Text>
-            <Text style={styles.subGreeting}>{formatBrDate(new Date())}</Text>
+            <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0] ?? 'você'}</Text>
+            <Text style={s.subGreeting}>{formatBrDate(new Date())}</Text>
           </View>
-          <Pressable style={styles.avatar} onPress={() => router.push('/(tabs)/profile')} testID="home-avatar">
-            <Text style={styles.avatarTxt}>{(user?.name?.[0] ?? 'V').toUpperCase()}</Text>
+          <Pressable style={s.avatar} onPress={() => router.push('/(tabs)/profile')} testID="home-avatar">
+            {user?.photo_base64 ? (
+              <Image source={{ uri: `data:image/jpeg;base64,${user.photo_base64}` }} style={s.avatarImg} contentFit="cover" />
+            ) : (
+              <Text style={s.avatarTxt}>{(user?.name?.[0] ?? 'V').toUpperCase()}</Text>
+            )}
           </Pressable>
         </View>
       </SafeAreaView>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandPrimary} />}
       >
-        {/* Calories main card */}
-        <View style={styles.mainCard}>
-          <Text style={styles.mainLabel}>Calorias restantes</Text>
-          <View style={styles.mainRow}>
-            <Text style={styles.mainValue}>{remaining}</Text>
-            <Text style={styles.mainUnit}>kcal</Text>
+        {/* Motivational quote */}
+        {!!quote && (
+          <View style={s.quoteBox} testID="home-quote">
+            <Ionicons name="sparkles" size={16} color={colors.brandDark} />
+            <Text style={s.quoteTxt}>{quote}</Text>
           </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+        )}
+
+        {/* Hero: Weight + Meta + Days remaining */}
+        <View style={s.heroCard}>
+          <View style={s.heroRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.heroLabel}>Peso atual</Text>
+              <Text style={s.heroValue}>
+                {data?.weight.current_kg ? data.weight.current_kg.toFixed(1) : '—'}
+                <Text style={s.heroUnit}> kg</Text>
+              </Text>
+              <Text style={s.heroMeta}>
+                Meta: {data?.weight.goal_kg ? `${data.weight.goal_kg} kg` : '—'}
+              </Text>
+            </View>
+            <View style={s.daysBadge}>
+              <Text style={s.daysNum}>{data?.days_remaining ?? '—'}</Text>
+              <Text style={s.daysTxt}>dias{'\n'}restantes</Text>
+            </View>
           </View>
-          <View style={styles.mainStats}>
-            <Stat label="Meta" value={`${kcalGoal}`} />
-            <Stat label="Consumidas" value={`${Math.round(kcalConsumed)}`} />
-            <Stat label="Exercício" value={`${Math.round(kcalBurned)}`} />
+          {data?.bmi != null && (
+            <View style={s.bmiRow}>
+              <View style={s.bmiPill}>
+                <Text style={s.bmiValue}>IMC {data.bmi}</Text>
+                <Text style={s.bmiLabel}> • {BMI_LABEL(data.bmi)}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Calories card */}
+        <View style={s.mainCard}>
+          <Text style={s.mainLabel}>Calorias restantes</Text>
+          <View style={s.mainRow}>
+            <Text style={s.mainValue}>{remaining}</Text>
+            <Text style={s.mainUnit}>kcal</Text>
+          </View>
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${progressPct}%` }]} />
+          </View>
+          <View style={s.mainStats}>
+            <Stat colors={colors} label="Meta" value={`${kcalGoal}`} />
+            <Stat colors={colors} label="Consumidas" value={`${Math.round(kcalConsumed)}`} />
+            <Stat colors={colors} label="Queimadas" value={`${Math.round(kcalBurned)}`} />
           </View>
         </View>
 
         {/* Macros row */}
-        <View style={styles.macrosRow}>
-          <MacroChip label="Proteína" value={data?.macros.protein_g ?? 0} unit="g" tint="#E07A5F" />
-          <MacroChip label="Carbo" value={data?.macros.carbs_g ?? 0} unit="g" tint="#F4A261" />
-          <MacroChip label="Gordura" value={data?.macros.fat_g ?? 0} unit="g" tint="#4A7258" />
+        <View style={s.macrosRow}>
+          <MacroChip colors={colors} label="Proteína" value={data?.macros.protein_g ?? 0} tint={colors.tintCoral} />
+          <MacroChip colors={colors} label="Carbo" value={data?.macros.carbs_g ?? 0} tint={colors.tintButter} />
+          <MacroChip colors={colors} label="Gordura" value={data?.macros.fat_g ?? 0} tint={colors.tintMint} />
         </View>
 
-        {/* Water card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardTitleRow}>
-              <Ionicons name="water" size={20} color="#3B82A0" />
-              <Text style={styles.cardTitle}>Hidratação</Text>
-            </View>
-            <Text style={styles.cardMeta}>{waterTotal} / {waterGoal} ml</Text>
-          </View>
-          <View style={styles.waterTrack}>
-            <View style={[styles.waterFill, { width: `${waterPct}%` }]} />
-          </View>
-          <View style={styles.waterActions}>
-            {[200, 300, 500].map(ml => (
-              <Pressable key={ml} onPress={() => addWater(ml)} style={styles.waterBtn} testID={`home-water-${ml}`}>
-                <Ionicons name="add" size={16} color={colors.brandDark} />
-                <Text style={styles.waterBtnTxt}>{ml} ml</Text>
-              </Pressable>
-            ))}
-          </View>
+        {/* 2x2 stat grid: água, passos, sono, exercícios */}
+        <View style={s.grid}>
+          <StatCard
+            colors={colors} tint={colors.tintSky} icon="water" iconColor={colors.info}
+            label="Hidratação" value={`${waterTotal}`} unit="ml" progress={waterPct}
+            action={<View style={s.miniActions}>
+              {[200, 300, 500].map(ml => (
+                <Pressable key={ml} onPress={() => addWater(ml)} style={s.miniBtn} testID={`home-water-${ml}`}>
+                  <Text style={s.miniBtnTxt}>+{ml}</Text>
+                </Pressable>
+              ))}
+            </View>}
+          />
+          <Pressable style={{ flex: 1 }} onPress={addSteps} testID="home-steps-card">
+            <StatCard
+              colors={colors} tint={colors.tintLavender} icon="footsteps" iconColor="#8B7FD9"
+              label="Passos" value={`${steps}`} unit={`/ ${stepsGoal}`} progress={stepsPct}
+            />
+          </Pressable>
         </View>
 
-        {/* Weight + Meals quick cards */}
-        <View style={styles.grid}>
-          <Pressable style={[styles.smallCard, { flex: 1 }]} onPress={() => router.push('/(tabs)/progress')} testID="home-weight-card">
-            <View style={[styles.iconBadge, { backgroundColor: '#DCE5DF' }]}>
-              <Ionicons name="scale" size={18} color={colors.brandPrimary} />
-            </View>
-            <Text style={styles.smallLabel}>Peso atual</Text>
-            <Text style={styles.smallValue}>
-              {data?.weight ? `${data.weight.weight_kg} kg` : '—'}
-            </Text>
-            {user?.goal_weight_kg && (
-              <Text style={styles.smallMeta}>Meta: {user.goal_weight_kg} kg</Text>
-            )}
-          </Pressable>
-          <Pressable style={[styles.smallCard, { flex: 1 }]} onPress={() => router.push('/(tabs)/food')} testID="home-meals-card">
-            <View style={[styles.iconBadge, { backgroundColor: '#FCEDE4' }]}>
-              <Ionicons name="restaurant" size={18} color={colors.brandSecondary} />
-            </View>
-            <Text style={styles.smallLabel}>Refeições hoje</Text>
-            <Text style={styles.smallValue}>{data?.meals_count ?? 0}</Text>
-            <Text style={styles.smallMeta}>Toque para registrar</Text>
-          </Pressable>
+        <View style={s.grid}>
+          <StatCard
+            colors={colors} tint={colors.tintPeach} icon="moon" iconColor="#D07A45"
+            label="Sono" value={data?.sleep.last_hours != null ? `${data.sleep.last_hours}` : '—'} unit="h"
+            progress={data?.sleep.last_hours ? Math.min(100, (data.sleep.last_hours / (data.sleep.goal_hours || 8)) * 100) : 0}
+          />
+          <StatCard
+            colors={colors} tint={colors.tintMint} icon="flame" iconColor={colors.success}
+            label="Exercícios" value={`${data?.exercises.minutes ?? 0}`} unit="min"
+            progress={Math.min(100, ((data?.exercises.minutes ?? 0) / 60) * 100)}
+            sub={`${data?.exercises.count ?? 0} atividades`}
+          />
         </View>
 
         {/* AI CTA */}
-        <Pressable style={styles.aiCta} onPress={() => router.push('/scan')} testID="home-ai-scan-cta">
-          <View style={styles.aiIcon}>
-            <Ionicons name="sparkles" size={22} color="#fff" />
+        <View style={s.ctaRow}>
+          <Pressable style={s.aiCta} onPress={() => router.push('/scan')} testID="home-ai-scan-cta">
+            <View style={s.aiIcon}><Ionicons name="sparkles" size={22} color={colors.brandDark} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.aiTitle}>Escanear com IA</Text>
+              <Text style={s.aiSub}>Foto → macros em segundos</Text>
+            </View>
+          </Pressable>
+          <Pressable style={s.aiCta2} onPress={() => router.push('/coach')} testID="home-ai-coach-cta">
+            <View style={s.aiIcon2}><Ionicons name="chatbubbles" size={22} color={colors.brandPrimary} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.aiTitle2}>Coach IA</Text>
+              <Text style={s.aiSub2}>Pergunte ao seu nutri</Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {/* Photos strip */}
+        <View style={s.section}>
+          <View style={s.sectionHead}>
+            <Text style={s.sectionTitle}>Fotos de progresso</Text>
+            <Pressable onPress={() => router.push('/photos')} testID="home-photos-link">
+              <Text style={s.linkTxt}>Ver todas</Text>
+            </Pressable>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.aiTitle}>Escanear Refeição com IA</Text>
-            <Text style={styles.aiSub}>Tire uma foto e obtenha macros em segundos</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color="#fff" />
-        </Pressable>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.photosRow}>
+            <Pressable style={s.photoAdd} onPress={() => router.push('/photos')} testID="home-photo-add">
+              <Ionicons name="add" size={28} color={colors.brandDark} />
+              <Text style={s.photoAddTxt}>Adicionar</Text>
+            </Pressable>
+            {(data?.photos ?? []).map(p => (
+              <View key={p.id} style={s.photoItem}>
+                <View style={s.photoPh}><Ionicons name="image" size={22} color={colors.muted} /></View>
+                <Text style={s.photoDate}>{formatShort(p.date)}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
@@ -155,7 +240,7 @@ export default function Home() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ colors, label, value }: { colors: ThemeColors; label: string; value: string }) {
   return (
     <View style={{ alignItems: 'center', flex: 1 }}>
       <Text style={{ ...typography.small, color: colors.muted, marginBottom: 2 }}>{label}</Text>
@@ -163,11 +248,41 @@ function Stat({ label, value }: { label: string; value: string }) {
     </View>
   );
 }
-function MacroChip({ label, value, unit, tint }: { label: string; value: number; unit: string; tint: string }) {
+
+function MacroChip({ colors, label, value, tint }: { colors: ThemeColors; label: string; value: number; tint: string }) {
   return (
-    <View style={[styles.macroCard, { borderLeftColor: tint }]}>
-      <Text style={{ ...typography.small, color: colors.muted }}>{label}</Text>
-      <Text style={{ ...typography.headline, color: colors.onSurface }}>{Math.round(value)}{unit}</Text>
+    <View style={{ flex: 1, backgroundColor: tint, borderRadius: radius.md, padding: spacing.md }}>
+      <Text style={{ ...typography.small, color: colors.onTint }}>{label}</Text>
+      <Text style={{ ...typography.headline, color: colors.onTint, marginTop: 2 }}>{Math.round(value)}g</Text>
+    </View>
+  );
+}
+
+function StatCard({ colors, tint, icon, iconColor, label, value, unit, progress, sub, action }: any) {
+  return (
+    <View style={{
+      flex: 1, backgroundColor: tint, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm, minHeight: 130,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+        <View style={{
+          width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.6)',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Ionicons name={icon} size={16} color={iconColor} />
+        </View>
+        <Text style={{ ...typography.caption, color: colors.onTint, fontWeight: '600' }}>{label}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: colors.onTint }}>{value}</Text>
+        <Text style={{ ...typography.small, color: colors.onTint, opacity: 0.7 }}>{unit}</Text>
+      </View>
+      {progress !== undefined && (
+        <View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+          <View style={{ height: '100%', width: `${progress}%`, backgroundColor: iconColor, borderRadius: 3 }} />
+        </View>
+      )}
+      {sub && <Text style={{ ...typography.small, color: colors.onTint, opacity: 0.75 }}>{sub}</Text>}
+      {action}
     </View>
   );
 }
@@ -177,17 +292,46 @@ function formatBrDate(d: Date): string {
   const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`;
 }
+function formatShort(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   headerSafe: { backgroundColor: colors.surface },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   greeting: { ...typography.displayMedium, color: colors.onSurface },
   subGreeting: { ...typography.caption, color: colors.muted, marginTop: 2, textTransform: 'capitalize' },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  content: { paddingHorizontal: spacing.xl, gap: spacing.lg, paddingTop: spacing.sm },
-  mainCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl, ...shadow.card, borderWidth: 1, borderColor: colors.border },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImg: { width: '100%', height: '100%' },
+  avatarTxt: { color: colors.onBrandPrimary, fontSize: 20, fontWeight: '700' },
+  content: { paddingHorizontal: spacing.xl, gap: spacing.md, paddingTop: spacing.xs },
+
+  quoteBox: {
+    flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start',
+    backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.md,
+  },
+  quoteTxt: { flex: 1, ...typography.caption, color: colors.brandDark, fontWeight: '600', lineHeight: 18 },
+
+  heroCard: { backgroundColor: colors.surfaceInverse, borderRadius: radius.lg, padding: spacing.xl, gap: spacing.md },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  heroLabel: { ...typography.caption, color: colors.onSurfaceInverse, opacity: 0.7 },
+  heroValue: { fontSize: 44, fontWeight: '700', color: colors.onSurfaceInverse, letterSpacing: -1, marginTop: 2 },
+  heroUnit: { fontSize: 18, fontWeight: '600', color: colors.onSurfaceInverse, opacity: 0.7 },
+  heroMeta: { ...typography.caption, color: colors.onSurfaceInverse, opacity: 0.7, marginTop: 4 },
+  daysBadge: {
+    backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minWidth: 96,
+  },
+  daysNum: { fontSize: 32, fontWeight: '700', color: colors.brandDark, letterSpacing: -1 },
+  daysTxt: { ...typography.small, color: colors.brandDark, textAlign: 'center', fontWeight: '700' },
+  bmiRow: { flexDirection: 'row' },
+  bmiPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill },
+  bmiValue: { color: colors.onSurfaceInverse, ...typography.caption, fontWeight: '700' },
+  bmiLabel: { color: colors.onSurfaceInverse, ...typography.caption, opacity: 0.85 },
+
+  mainCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl, borderWidth: 1, borderColor: colors.border, ...shadow.card },
   mainLabel: { ...typography.caption, color: colors.muted },
   mainRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xs, gap: spacing.sm },
   mainValue: { fontSize: 48, fontWeight: '700', color: colors.onSurface, letterSpacing: -1 },
@@ -195,32 +339,35 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, backgroundColor: colors.divider, borderRadius: 4, marginTop: spacing.md, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.brandPrimary, borderRadius: 4 },
   mainStats: { flexDirection: 'row', marginTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: spacing.md },
-  macrosRow: { flexDirection: 'row', gap: spacing.md },
-  macroCard: {
-    flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md,
-    borderLeftWidth: 3, borderWidth: 1, borderColor: colors.border, gap: 2,
-  },
-  card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, ...shadow.soft },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitleRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
-  cardTitle: { ...typography.bodyStrong, color: colors.onSurface },
-  cardMeta: { ...typography.caption, color: colors.muted },
-  waterTrack: { height: 10, backgroundColor: colors.divider, borderRadius: 5, marginTop: spacing.md, overflow: 'hidden' },
-  waterFill: { height: '100%', backgroundColor: '#3B82A0', borderRadius: 5 },
-  waterActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  waterBtn: {
-    flex: 1, flexDirection: 'row', gap: spacing.xs, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.brandTertiary, borderRadius: radius.pill, paddingVertical: 10,
-  },
-  waterBtnTxt: { ...typography.caption, color: colors.brandDark, fontWeight: '700' },
+
+  macrosRow: { flexDirection: 'row', gap: spacing.sm },
+
   grid: { flexDirection: 'row', gap: spacing.md },
-  smallCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, gap: 4 },
-  iconBadge: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
-  smallLabel: { ...typography.caption, color: colors.muted },
-  smallValue: { ...typography.title, color: colors.onSurface },
-  smallMeta: { ...typography.small, color: colors.muted, marginTop: 2 },
-  aiCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.surfaceInverse, padding: spacing.lg, borderRadius: radius.lg },
-  aiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  aiTitle: { color: '#fff', ...typography.bodyStrong },
-  aiSub: { color: 'rgba(255,255,255,0.7)', ...typography.small, marginTop: 2 },
+  miniActions: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  miniBtn: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.55)' },
+  miniBtnTxt: { ...typography.small, color: colors.onTint, fontWeight: '700' },
+
+  ctaRow: { flexDirection: 'row', gap: spacing.md },
+  aiCta: { flex: 1, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.lg },
+  aiIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
+  aiTitle: { color: colors.brandDark, fontWeight: '700', fontSize: 14 },
+  aiSub: { color: colors.brandDark, opacity: 0.7, fontSize: 11, marginTop: 1 },
+  aiCta2: { flex: 1, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.surfaceInverse, padding: spacing.md, borderRadius: radius.lg },
+  aiIcon2: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(198,241,75,0.15)', alignItems: 'center', justifyContent: 'center' },
+  aiTitle2: { color: colors.onSurfaceInverse, fontWeight: '700', fontSize: 14 },
+  aiSub2: { color: colors.onSurfaceInverse, opacity: 0.7, fontSize: 11, marginTop: 1 },
+
+  section: { gap: spacing.sm, marginTop: spacing.sm },
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { ...typography.headline, color: colors.onSurface },
+  linkTxt: { ...typography.caption, color: colors.muted, fontWeight: '600' },
+  photosRow: { gap: spacing.sm, paddingRight: spacing.xl },
+  photoAdd: {
+    width: 96, height: 96, borderRadius: radius.md, backgroundColor: colors.brandPrimary,
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
+  photoAddTxt: { ...typography.small, color: colors.brandDark, fontWeight: '700' },
+  photoItem: { width: 96, gap: 4 },
+  photoPh: { width: 96, height: 96, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' },
+  photoDate: { ...typography.small, color: colors.muted, textAlign: 'center' },
 });

@@ -1,14 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/src/theme';
+import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
+
+const GOAL_LABEL: Record<string, string> = {
+  lose: 'Perder peso', maintain: 'Manter peso', gain: 'Ganhar massa', improve_health: 'Melhorar saúde',
+};
 
 export default function Profile() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { colors, mode, setMode } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   const rows: { icon: any; label: string; value?: string }[] = [
     { icon: 'flame', label: 'Meta de calorias', value: `${user?.daily_calorie_goal ?? 2000} kcal` },
@@ -16,107 +24,138 @@ export default function Profile() {
     { icon: 'footsteps', label: 'Meta de passos', value: `${user?.daily_steps_goal ?? 8000}` },
     { icon: 'scale', label: 'Peso meta', value: user?.goal_weight_kg ? `${user.goal_weight_kg} kg` : '—' },
     { icon: 'resize', label: 'Altura', value: user?.height_cm ? `${user.height_cm} cm` : '—' },
-    { icon: 'fitness', label: 'Objetivo', value: user?.goal === 'lose' ? 'Perder peso' : user?.goal === 'gain' ? 'Ganhar massa' : 'Manter peso' },
+    { icon: 'fitness', label: 'Objetivo', value: user?.goal ? GOAL_LABEL[user.goal] : '—' },
   ];
 
   return (
-    <View style={styles.root} testID="profile-screen">
+    <View style={s.root} testID="profile-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Perfil</Text>
+        <View style={s.header}>
+          <Text style={s.title}>Perfil</Text>
+          <Pressable style={s.editIcon} onPress={() => router.push('/profile-edit')} testID="profile-edit-header">
+            <Ionicons name="create-outline" size={22} color={colors.onSurface} />
+          </Pressable>
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Identity */}
-        <View style={styles.identity}>
-          <View style={styles.avatarBig}>
-            <Text style={styles.avatarTxt}>{(user?.name?.[0] ?? 'V').toUpperCase()}</Text>
-          </View>
-          <Text style={styles.name}>{user?.name}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
-          <View style={styles.providerBadge}>
+      <ScrollView contentContainerStyle={s.content}>
+        <View style={s.identity}>
+          <Pressable style={s.avatarBig} onPress={() => router.push('/profile-edit')} testID="profile-avatar-edit">
+            {user?.photo_base64 ? (
+              <Image source={{ uri: `data:image/jpeg;base64,${user.photo_base64}` }} style={s.avatarImg} contentFit="cover" />
+            ) : (
+              <Text style={s.avatarTxt}>{(user?.name?.[0] ?? 'V').toUpperCase()}</Text>
+            )}
+            <View style={s.avatarBadge}>
+              <Ionicons name="camera" size={12} color={colors.onBrandPrimary} />
+            </View>
+          </Pressable>
+          <Text style={s.name}>{user?.name}</Text>
+          <Text style={s.email}>{user?.email}</Text>
+          <View style={s.providerBadge}>
             <Ionicons name={user?.auth_provider === 'google' ? 'logo-google' : 'mail'} size={12} color={colors.brandDark} />
-            <Text style={styles.providerTxt}>
-              {user?.auth_provider === 'google' ? 'Google' : 'E-mail'}
-            </Text>
+            <Text style={s.providerTxt}>{user?.auth_provider === 'google' ? 'Google' : 'E-mail'}</Text>
           </View>
         </View>
 
-        {/* Goals section */}
-        <Text style={styles.sectionLabel}>Metas & Medidas</Text>
-        <View style={styles.card}>
+        <Text style={s.sectionLabel}>Aparência</Text>
+        <View style={s.card}>
+          <View style={s.themeRow}>
+            {(['light', 'dark', 'system'] as const).map(m => (
+              <Pressable
+                key={m}
+                onPress={() => setMode(m)}
+                style={[s.themeChip, mode === m && s.themeChipActive]}
+                testID={`profile-theme-${m}`}
+              >
+                <Ionicons
+                  name={m === 'light' ? 'sunny' : m === 'dark' ? 'moon' : 'phone-portrait'}
+                  size={16}
+                  color={mode === m ? colors.onBrandPrimary : colors.onSurface}
+                />
+                <Text style={[s.themeChipTxt, mode === m && { color: colors.onBrandPrimary, fontWeight: '700' }]}>
+                  {m === 'light' ? 'Claro' : m === 'dark' ? 'Escuro' : 'Sistema'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <Text style={s.sectionLabel}>Metas & Medidas</Text>
+        <View style={s.card}>
           {rows.map((r, i) => (
-            <View key={r.label} style={[styles.row, i < rows.length - 1 && styles.rowBorder]}>
-              <View style={styles.rowIcon}><Ionicons name={r.icon} size={18} color={colors.brandPrimary} /></View>
-              <Text style={styles.rowLabel}>{r.label}</Text>
-              <Text style={styles.rowValue}>{r.value}</Text>
+            <View key={r.label} style={[s.row, i < rows.length - 1 && s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name={r.icon} size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>{r.label}</Text>
+              <Text style={s.rowValue}>{r.value}</Text>
             </View>
           ))}
         </View>
 
-        {/* Update setup */}
-        <Pressable style={styles.linkRow} onPress={() => router.push('/(auth)/setup')} testID="profile-edit-goals">
-          <Ionicons name="create-outline" size={20} color={colors.brandPrimary} />
-          <Text style={styles.linkTxt}>Editar metas</Text>
+        <Pressable style={s.linkRow} onPress={() => router.push('/profile-edit')} testID="profile-edit-goals">
+          <Ionicons name="create-outline" size={20} color={colors.brandDark} />
+          <Text style={s.linkTxt}>Editar perfil e metas</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ marginLeft: 'auto' }} />
         </Pressable>
 
-        {/* Sessions & Security section */}
-        <Text style={styles.sectionLabel}>Segurança</Text>
-        <View style={styles.card}>
-          <View style={[styles.row, styles.rowBorder]}>
-            <View style={styles.rowIcon}><Ionicons name="finger-print" size={18} color={colors.brandPrimary} /></View>
-            <Text style={styles.rowLabel}>Biometria</Text>
-            <Text style={styles.rowValue}>Em breve</Text>
-          </View>
-          <View style={[styles.row, styles.rowBorder]}>
-            <View style={styles.rowIcon}><Ionicons name="shield-checkmark" size={18} color={colors.brandPrimary} /></View>
-            <Text style={styles.rowLabel}>Autenticação 2FA</Text>
-            <Text style={styles.rowValue}>Em breve</Text>
-          </View>
-          <View style={styles.row}>
-            <View style={styles.rowIcon}><Ionicons name="phone-portrait" size={18} color={colors.brandPrimary} /></View>
-            <Text style={styles.rowLabel}>Dispositivos conectados</Text>
-            <Text style={styles.rowValue}>1</Text>
-          </View>
+        <Text style={s.sectionLabel}>Segurança</Text>
+        <View style={s.card}>
+          <SecurityRow colors={colors} icon="finger-print" label="Biometria" value="Em breve" />
+          <SecurityRow colors={colors} icon="shield-checkmark" label="Autenticação 2FA" value="Em breve" border={false} />
         </View>
 
-        {/* Logout */}
-        <Pressable style={styles.logoutBtn} onPress={logout} testID="profile-logout-button">
+        <Pressable style={s.logoutBtn} onPress={logout} testID="profile-logout-button">
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
-          <Text style={styles.logoutTxt}>Sair da conta</Text>
+          <Text style={s.logoutTxt}>Sair da conta</Text>
         </Pressable>
 
-        <Text style={styles.footer}>VitaTracker v1.0 • Feito com 💚 no Brasil</Text>
+        <Text style={s.footer}>VitaTracker v1.1 • Feito com 💚 no Brasil</Text>
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function SecurityRow({ colors, icon, label, value, border = true }: any) {
+  const s = makeStyles(colors);
+  return (
+    <View style={[s.row, border && s.rowBorder]}>
+      <View style={s.rowIcon}><Ionicons name={icon} size={18} color={colors.brandDark} /></View>
+      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={s.rowValue}>{value}</Text>
+    </View>
+  );
+}
+
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
-  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
+  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { ...typography.displayMedium, color: colors.onSurface },
+  editIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
   content: { paddingHorizontal: spacing.xl, gap: spacing.md },
-  identity: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },
-  avatarBig: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },
-  avatarTxt: { color: '#fff', fontSize: 32, fontWeight: '700' },
+  identity: { alignItems: 'center', paddingVertical: spacing.lg, gap: 4 },
+  avatarBig: { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm, overflow: 'visible' },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 48 },
+  avatarTxt: { color: colors.onBrandPrimary, fontSize: 38, fontWeight: '700' },
+  avatarBadge: { position: 'absolute', right: 0, bottom: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brandDark, borderWidth: 2, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   name: { ...typography.title, color: colors.onSurface },
   email: { ...typography.caption, color: colors.muted },
-  providerBadge: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center', backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, marginTop: spacing.xs },
+  providerBadge: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center', backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, marginTop: spacing.xs },
   providerTxt: { ...typography.small, color: colors.brandDark, fontWeight: '700' },
   sectionLabel: { ...typography.caption, color: colors.muted, marginLeft: spacing.md, marginTop: spacing.md, textTransform: 'uppercase', letterSpacing: 0.5 },
   card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.divider },
-  rowIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
   rowLabel: { flex: 1, ...typography.body, color: colors.onSurface },
   rowValue: { ...typography.bodyStrong, color: colors.onSurfaceSecondary },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  linkTxt: { ...typography.body, color: colors.onSurface, fontWeight: '600' },
-  logoutBtn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: '#FEECEC', borderRadius: radius.md, marginTop: spacing.md },
+  themeRow: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
+  themeChip: { flex: 1, flexDirection: 'row', gap: spacing.xs, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm + 2, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
+  themeChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  themeChipTxt: { ...typography.caption, color: colors.onSurface },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md },
+  linkTxt: { ...typography.body, color: colors.brandDark, fontWeight: '700' },
+  logoutBtn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.md },
   logoutTxt: { color: colors.error, fontWeight: '700', ...typography.body },
   footer: { textAlign: 'center', ...typography.small, color: colors.muted, marginTop: spacing.lg },
 });

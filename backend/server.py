@@ -137,10 +137,13 @@ class ProfileIn(BaseModel):
     starting_weight_kg: Optional[float] = None
     goal_weight_kg: Optional[float] = None
     activity_level: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = None
-    goal: Optional[Literal["lose", "maintain", "gain"]] = None
+    goal: Optional[Literal["lose", "maintain", "gain", "improve_health"]] = None
     daily_calorie_goal: Optional[int] = None
     daily_water_ml_goal: Optional[int] = None
     daily_steps_goal: Optional[int] = None
+    daily_sleep_hours_goal: Optional[float] = None
+    target_date: Optional[str] = None  # ISO YYYY-MM-DD
+    photo_base64: Optional[str] = None
 
 
 class WeightIn(BaseModel):
@@ -236,6 +239,8 @@ async def register(payload: RegisterIn):
         "starting_weight_kg": None, "goal_weight_kg": None,
         "activity_level": "moderate", "goal": "maintain",
         "daily_calorie_goal": 2000, "daily_water_ml_goal": 2000, "daily_steps_goal": 8000,
+        "daily_sleep_hours_goal": 8.0,
+        "target_date": None, "photo_base64": None,
         "onboarded": False,
     }
     await db.users.insert_one(user)
@@ -276,6 +281,8 @@ async def google_session(payload: GoogleSessionIn):
             "starting_weight_kg": None, "goal_weight_kg": None,
             "activity_level": "moderate", "goal": "maintain",
             "daily_calorie_goal": 2000, "daily_water_ml_goal": 2000, "daily_steps_goal": 8000,
+            "daily_sleep_hours_goal": 8.0,
+            "target_date": None, "photo_base64": None,
             "onboarded": False,
         }
         await db.users.insert_one(user)
@@ -509,27 +516,134 @@ async def list_mood(user: dict = Depends(current_user)):
 
 
 # -------------------- Dashboard --------------------
+QUOTES_PT = [
+    "Pequenos passos todos os dias criam grandes transformações.",
+    "Você é mais forte do que imagina. Continue.",
+    "O corpo alcança o que a mente acredita.",
+    "Cuide de si — é a sua maior riqueza.",
+    "A disciplina de hoje é o resultado de amanhã.",
+    "Um dia de cada vez. Um passo de cada vez.",
+    "Consistência supera intensidade.",
+    "Você não precisa ser perfeito — precisa ser constante.",
+    "Cada refeição é uma chance de recomeçar.",
+    "Sua saúde é o projeto mais importante da sua vida.",
+]
+
+
+@api.get("/motivation")
+async def motivation(user: dict = Depends(current_user)):
+    # Deterministic per-day quote to feel consistent
+    idx = (hash(user["user_id"] + today_iso()) % len(QUOTES_PT))
+    return {"quote": QUOTES_PT[abs(idx)]}
+
+
+class ProgressPhotoIn(BaseModel):
+    image_base64: str
+    weight_kg: Optional[float] = None
+    note: Optional[str] = None
+    date: Optional[str] = None
+
+
+@api.post("/photos")
+async def add_photo(payload: ProgressPhotoIn, user: dict = Depends(current_user)):
+    entry = {
+        "id": new_id("ph"),
+        "user_id": user["user_id"],
+        "image_base64": payload.image_base64,
+        "weight_kg": payload.weight_kg,
+        "note": payload.note,
+        "date": payload.date or today_iso(),
+        "created_at": now_utc().isoformat(),
+    }
+    await db.photos.insert_one(entry)
+    return {k: v for k, v in entry.items() if k != "_id"}
+
+
+@api.get("/photos")
+async def list_photos(user: dict = Depends(current_user)):
+    items = await db.photos.find({"user_id": user["user_id"]}, {"_id": 0}).sort("date", -1).to_list(30)
+    return {"items": items}
+
+
+@api.delete("/photos/{photo_id}")
+async def delete_photo(photo_id: str, user: dict = Depends(current_user)):
+    await db.photos.delete_one({"id": photo_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+class StepsIn(BaseModel):
+    steps: int
+    date: Optional[str] = None
+
+
+@api.post("/steps")
+async def add_steps(payload: StepsIn, user: dict = Depends(current_user)):
+    date = payload.date or today_iso()
+    await db.steps.update_one(
+        {"user_id": user["user_id"], "date": date},
+        {"$set": {"steps": payload.steps, "user_id": user["user_id"], "date": date, "updated_at": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return {"steps": payload.steps, "date": date}
+
+
 @api.get("/dashboard/summary")
 async def dashboard(user: dict = Depends(current_user)):
     today = today_iso()
-    meals = await db.meals.find({"user_id": user["user_id"], "date": today}, {"_id": 0}).to_list(200)
-    waters = await db.waters.find({"user_id": user["user_id"], "date": today}, {"_id": 0}).to_list(200)
-    exercises = await db.exercises.find({"user_id": user["user_id"], "date": today}, {"_id": 0}).to_list(200)
-    latest_weight = await db.weights.find({"user_id": user["user_id"]}, {"_id": 0}).sort("date", -1).to_list(1)
+    uid = user["user_id"]
+    meals = await db.meals.find({"user_id": uid, "date": today}, {"_id": 0}).to_list(200)
+    waters = await db.waters.find({"user_id": uid, "date": today}, {"_id": 0}).to_list(200)
+    exercises = await db.exercises.find({"user_id": uid, "date": today}, {"_id": 0}).to_list(200)
+    latest_weight = await db.weights.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(1)
+    latest_sleep = await db.sleeps.find({"user_id": uid}, {"_id": 0}).sort("date", -1).to_list(1)
+    steps_doc = await db.steps.find_one({"user_id": uid, "date": today}, {"_id": 0})
+    photos = await db.photos.find({"user_id": uid}, {"_id": 0, "image_base64": 0}).sort("date", -1).to_list(6)
+
     calories = sum(m.get("calories", 0) for m in meals)
     protein = sum(m.get("protein_g", 0) for m in meals)
     carbs = sum(m.get("carbs_g", 0) for m in meals)
     fat = sum(m.get("fat_g", 0) for m in meals)
     water_ml = sum(w.get("amount_ml", 0) for w in waters)
     burned = sum(e.get("calories_burned", 0) for e in exercises)
+    exercise_min = sum(e.get("duration_min", 0) for e in exercises)
+
+    height_cm = user.get("height_cm")
+    current_weight = latest_weight[0]["weight_kg"] if latest_weight else user.get("starting_weight_kg")
+    bmi = None
+    if height_cm and current_weight:
+        m = height_cm / 100.0
+        bmi = round(current_weight / (m * m), 1) if m > 0 else None
+
+    days_remaining = None
+    td = user.get("target_date")
+    if td:
+        try:
+            target = datetime.fromisoformat(td).date()
+            delta = (target - now_utc().date()).days
+            days_remaining = max(0, delta)
+        except Exception:
+            pass
+
     return {
         "date": today,
         "calories": {"consumed": calories, "goal": user.get("daily_calorie_goal") or 2000, "burned": burned},
         "macros": {"protein_g": protein, "carbs_g": carbs, "fat_g": fat},
         "water": {"total_ml": water_ml, "goal_ml": user.get("daily_water_ml_goal") or 2000},
-        "weight": latest_weight[0] if latest_weight else None,
+        "weight": {
+            "current_kg": current_weight,
+            "starting_kg": user.get("starting_weight_kg"),
+            "goal_kg": user.get("goal_weight_kg"),
+        },
+        "bmi": bmi,
+        "days_remaining": days_remaining,
+        "steps": {"count": steps_doc["steps"] if steps_doc else 0, "goal": user.get("daily_steps_goal") or 8000},
+        "sleep": {
+            "last_hours": latest_sleep[0]["hours"] if latest_sleep else None,
+            "goal_hours": user.get("daily_sleep_hours_goal") or 8.0,
+        },
+        "exercises": {"count": len(exercises), "minutes": exercise_min, "burned": burned},
         "meals_count": len(meals),
-        "exercises_count": len(exercises),
+        "photos": photos,
     }
 
 

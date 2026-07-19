@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
@@ -8,10 +8,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/src/theme';
+import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 export default function Register() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,43 +33,37 @@ export default function Register() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable onPress={() => router.back()} style={styles.back} testID="register-back-button">
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={() => router.back()} style={s.back} testID="register-back-button">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
 
-          <Text style={styles.title}>Criar conta</Text>
-          <Text style={styles.sub}>Leva menos de 1 minuto.</Text>
+          <Text style={s.title}>Criar conta</Text>
+          <Text style={s.sub}>Leva menos de 1 minuto.</Text>
 
-          <View style={styles.form}>
-            <Field icon="person-outline" placeholder="Seu nome" value={name} onChangeText={setName} testID="register-name-input" />
-            <Field icon="mail-outline" placeholder="E-mail" value={email} onChangeText={setEmail}
+          <View style={s.form}>
+            <Field colors={colors} icon="person-outline" placeholder="Seu nome" value={name} onChangeText={setName} testID="register-name-input" />
+            <Field colors={colors} icon="mail-outline" placeholder="E-mail" value={email} onChangeText={setEmail}
               autoCapitalize="none" keyboardType="email-address" testID="register-email-input" />
-            <Field
-              icon="lock-closed-outline" placeholder="Senha (mín. 6 caracteres)" value={password}
+            <Field colors={colors} icon="lock-closed-outline" placeholder="Senha (mín. 6 caracteres)" value={password}
               onChangeText={setPassword} secureTextEntry={!showPw} testID="register-password-input"
-              right={
-                <Pressable onPress={() => setShowPw(v => !v)} hitSlop={12}>
-                  <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
-                </Pressable>
-              }
-            />
-            {error && <Text style={styles.error} testID="register-error">{error}</Text>}
+              right={<Pressable onPress={() => setShowPw(v => !v)} hitSlop={12}>
+                <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
+              </Pressable>} />
+            {error && <Text style={s.error} testID="register-error">{error}</Text>}
 
             <Pressable
               testID="register-submit-button"
-              style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.9 }]}
+              style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.9 }]}
               onPress={submit}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryTxt}>Criar conta</Text>}
+              {loading ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={s.primaryTxt}>Criar conta</Text>}
             </Pressable>
 
-            <Text style={styles.terms}>
-              Ao continuar, você concorda com nossos Termos e Política de Privacidade.
-            </Text>
+            <Text style={s.terms}>Ao continuar, você concorda com nossos Termos e Política de Privacidade.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -75,13 +71,14 @@ export default function Register() {
   );
 }
 
-function Field({ icon, placeholder, value, onChangeText, secureTextEntry, autoCapitalize, keyboardType, right, testID }: any) {
+function Field({ colors, icon, placeholder, value, onChangeText, secureTextEntry, autoCapitalize, keyboardType, right, testID }: any) {
+  const s = makeStyles(colors);
   return (
-    <View style={styles.field}>
+    <View style={s.field}>
       <Ionicons name={icon} size={20} color={colors.muted} />
       <TextInput
         testID={testID}
-        style={styles.input}
+        style={s.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -95,7 +92,7 @@ function Field({ icon, placeholder, value, onChangeText, secureTextEntry, autoCa
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },

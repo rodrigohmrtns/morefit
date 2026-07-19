@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
-import { colors, radius, shadow, spacing, typography } from '@/src/theme';
+import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Analysis = {
   name: string; portion?: string; calories: number; protein_g: number;
@@ -23,7 +23,8 @@ const MEAL_LABEL: Record<string, string> = {
 export default function Scan() {
   const router = useRouter();
   const params = useLocalSearchParams<{ meal_type?: string }>();
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -33,18 +34,14 @@ export default function Scan() {
 
   const pickImage = async (source: 'camera' | 'library') => {
     setError(null);
-    let perm;
-    if (source === 'camera') {
-      perm = await ImagePicker.requestCameraPermissionsAsync();
-    } else {
-      perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    }
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { setError('Permissão negada'); return; }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images })
       : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images });
     if (result.canceled || !result.assets?.[0]?.base64) return;
-    setImageBase64(result.assets[0].base64);
     setImageUri(result.assets[0].uri);
     analyze(result.assets[0].base64);
   };
@@ -68,13 +65,9 @@ export default function Scan() {
       await api('/meals', {
         method: 'POST',
         body: {
-          name: analysis.name,
-          meal_type: mealType,
-          portion: analysis.portion,
-          calories: analysis.calories,
-          protein_g: analysis.protein_g,
-          carbs_g: analysis.carbs_g,
-          fat_g: analysis.fat_g,
+          name: analysis.name, meal_type: mealType, portion: analysis.portion,
+          calories: analysis.calories, protein_g: analysis.protein_g,
+          carbs_g: analysis.carbs_g, fat_g: analysis.fat_g,
         },
       });
       router.replace('/(tabs)/food');
@@ -83,101 +76,88 @@ export default function Scan() {
   };
 
   return (
-    <View style={styles.root} testID="scan-screen">
+    <View style={s.root} testID="scan-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.back} testID="scan-back">
+        <View style={s.header}>
+          <Pressable onPress={() => router.back()} style={s.back} testID="scan-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
-          <Text style={styles.title}>Escaneamento IA</Text>
+          <Text style={s.title}>Escaneamento IA</Text>
           <View style={{ width: 34 }} />
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Meal type chips */}
-        <View style={styles.chipsRow}>
+      <ScrollView contentContainerStyle={s.content}>
+        <View style={s.chipsRow}>
           {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(k => (
-            <Pressable
-              key={k}
-              onPress={() => setMealType(k)}
-              style={[styles.chip, mealType === k && styles.chipActive]}
-              testID={`scan-mealtype-${k}`}
-            >
-              <Text style={[styles.chipTxt, mealType === k && { color: colors.brandDark, fontWeight: '700' }]}>{MEAL_LABEL[k]}</Text>
+            <Pressable key={k} onPress={() => setMealType(k)}
+              style={[s.chip, mealType === k && s.chipActive]} testID={`scan-mealtype-${k}`}>
+              <Text style={[s.chipTxt, mealType === k && { color: colors.onBrandPrimary, fontWeight: '700' }]}>{MEAL_LABEL[k]}</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Image area */}
-        <View style={styles.imageBox}>
+        <View style={s.imageBox}>
           {imageUri ? (
             <Image source={imageUri} style={StyleSheet.absoluteFillObject} contentFit="cover" />
           ) : (
-            <View style={styles.imageEmpty}>
+            <View style={s.imageEmpty}>
               <Ionicons name="restaurant-outline" size={44} color={colors.muted} />
-              <Text style={styles.imageHint}>Tire ou envie uma foto da sua refeição</Text>
+              <Text style={s.imageHint}>Tire ou envie uma foto da sua refeição</Text>
             </View>
           )}
           {analyzing && (
-            <View style={styles.overlay}>
+            <View style={s.overlay}>
               <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.overlayTxt}>Analisando com IA…</Text>
+              <Text style={s.overlayTxt}>Analisando com IA…</Text>
             </View>
           )}
         </View>
 
-        {/* Action buttons */}
-        <View style={styles.actions}>
-          <Pressable style={styles.actBtn} onPress={() => pickImage('camera')} testID="scan-camera-btn">
+        <View style={s.actions}>
+          <Pressable style={s.actBtn} onPress={() => pickImage('camera')} testID="scan-camera-btn">
             <Ionicons name="camera" size={20} color={colors.onSurface} />
-            <Text style={styles.actTxt}>Câmera</Text>
+            <Text style={s.actTxt}>Câmera</Text>
           </Pressable>
-          <Pressable style={styles.actBtn} onPress={() => pickImage('library')} testID="scan-library-btn">
+          <Pressable style={s.actBtn} onPress={() => pickImage('library')} testID="scan-library-btn">
             <Ionicons name="images" size={20} color={colors.onSurface} />
-            <Text style={styles.actTxt}>Galeria</Text>
+            <Text style={s.actTxt}>Galeria</Text>
           </Pressable>
         </View>
 
-        {error && <Text style={styles.error} testID="scan-error">{error}</Text>}
+        {error && <Text style={s.error} testID="scan-error">{error}</Text>}
 
-        {/* Analysis result */}
         {analysis && (
-          <View style={styles.result} testID="scan-result">
-            <View style={styles.resultHeader}>
+          <View style={s.result} testID="scan-result">
+            <View style={s.resultHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.resultName}>{analysis.name}</Text>
-                {analysis.portion && <Text style={styles.resultPortion}>{analysis.portion}</Text>}
+                <Text style={s.resultName}>{analysis.name}</Text>
+                {analysis.portion && <Text style={s.resultPortion}>{analysis.portion}</Text>}
               </View>
-              <View style={styles.calBadge}>
-                <Text style={styles.calTxt}>{Math.round(analysis.calories)}</Text>
-                <Text style={styles.calUnit}>kcal</Text>
+              <View style={s.calBadge}>
+                <Text style={s.calTxt}>{Math.round(analysis.calories)}</Text>
+                <Text style={s.calUnit}>kcal</Text>
               </View>
             </View>
 
-            <View style={styles.macroRow}>
-              <Macro label="Proteína" value={analysis.protein_g} tint="#E07A5F" />
-              <Macro label="Carbo" value={analysis.carbs_g} tint="#F4A261" />
-              <Macro label="Gordura" value={analysis.fat_g} tint="#4A7258" />
+            <View style={s.macroRow}>
+              <Macro colors={colors} label="Proteína" value={analysis.protein_g} tint={colors.tintCoral} />
+              <Macro colors={colors} label="Carbo" value={analysis.carbs_g} tint={colors.tintButter} />
+              <Macro colors={colors} label="Gordura" value={analysis.fat_g} tint={colors.tintMint} />
             </View>
 
             {analysis.tips && (
-              <View style={styles.tipBox}>
+              <View style={s.tipBox}>
                 <Ionicons name="bulb" size={16} color={colors.brandDark} />
-                <Text style={styles.tipTxt}>{analysis.tips}</Text>
+                <Text style={s.tipTxt}>{analysis.tips}</Text>
               </View>
             )}
 
-            <Pressable
-              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={save}
-              disabled={saving}
-              testID="scan-save-button"
-            >
-              {saving ? <ActivityIndicator color="#fff" /> : (
+            <Pressable style={[s.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving} testID="scan-save-button">
+              {saving ? <ActivityIndicator color={colors.onBrandPrimary} /> : (
                 <>
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                  <Text style={styles.saveTxt}>Adicionar ao Diário</Text>
+                  <Ionicons name="checkmark" size={18} color={colors.onBrandPrimary} />
+                  <Text style={s.saveTxt}>Adicionar ao Diário</Text>
                 </>
               )}
             </Pressable>
@@ -189,16 +169,16 @@ export default function Scan() {
   );
 }
 
-function Macro({ label, value, tint }: { label: string; value: number; tint: string }) {
+function Macro({ colors, label, value, tint }: { colors: ThemeColors; label: string; value: number; tint: string }) {
   return (
-    <View style={[styles.macroBox, { borderLeftColor: tint }]}>
-      <Text style={{ ...typography.small, color: colors.muted }}>{label}</Text>
-      <Text style={{ ...typography.headline, color: colors.onSurface }}>{Math.round(value)}g</Text>
+    <View style={{ flex: 1, backgroundColor: tint, padding: spacing.md, borderRadius: radius.sm, gap: 2 }}>
+      <Text style={{ ...typography.small, color: colors.onTint, opacity: 0.75 }}>{label}</Text>
+      <Text style={{ ...typography.headline, color: colors.onTint }}>{Math.round(value)}g</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   back: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
@@ -206,7 +186,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.lg },
   chipsRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, flexShrink: 0 },
-  chipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
+  chipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   chipTxt: { ...typography.caption, color: colors.onSurfaceSecondary },
   imageBox: { height: 240, borderRadius: radius.lg, backgroundColor: colors.surfaceTertiary, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   imageEmpty: { alignItems: 'center', gap: spacing.sm, padding: spacing.xl },
@@ -221,13 +201,12 @@ const styles = StyleSheet.create({
   resultHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   resultName: { ...typography.title, color: colors.onSurface },
   resultPortion: { ...typography.caption, color: colors.muted, marginTop: 2 },
-  calBadge: { alignItems: 'center', backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, minWidth: 80 },
+  calBadge: { alignItems: 'center', backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, minWidth: 80 },
   calTxt: { fontSize: 20, fontWeight: '700', color: colors.brandDark },
   calUnit: { ...typography.small, color: colors.brandDark },
   macroRow: { flexDirection: 'row', gap: spacing.sm },
-  macroBox: { flex: 1, borderLeftWidth: 3, backgroundColor: colors.surface, padding: spacing.md, borderRadius: radius.sm, gap: 2 },
-  tipBox: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: colors.brandTertiary, padding: spacing.md, borderRadius: radius.md },
-  tipTxt: { flex: 1, ...typography.caption, color: colors.brandDark, lineHeight: 18 },
+  tipBox: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.md },
+  tipTxt: { flex: 1, ...typography.caption, color: colors.brandDark, lineHeight: 18, fontWeight: '600' },
   saveBtn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPrimary, paddingVertical: 14, borderRadius: radius.pill },
-  saveTxt: { color: '#fff', fontWeight: '700', ...typography.body },
+  saveTxt: { color: colors.onBrandPrimary, fontWeight: '700', ...typography.body },
 });

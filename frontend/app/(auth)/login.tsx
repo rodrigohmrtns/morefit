@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
@@ -8,10 +8,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/src/theme';
+import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 export default function Login() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,58 +31,51 @@ export default function Login() {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable onPress={() => router.back()} style={styles.back} testID="login-back-button">
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+          <Pressable onPress={() => router.back()} style={s.back} testID="login-back-button">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
 
-          <Text style={styles.title}>Bem-vindo{'\n'}de volta</Text>
-          <Text style={styles.sub}>Entre para acompanhar sua jornada.</Text>
+          <Text style={s.title}>Bem-vindo{'\n'}de volta</Text>
+          <Text style={s.sub}>Entre para acompanhar sua jornada.</Text>
 
-          <View style={styles.form}>
-            <Field
-              testID="login-email-input"
-              icon="mail-outline" placeholder="E-mail" value={email}
-              onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address"
-            />
-            <Field
-              testID="login-password-input"
-              icon="lock-closed-outline" placeholder="Senha" value={password}
-              onChangeText={setPassword} secureTextEntry={!showPw}
-              right={
-                <Pressable onPress={() => setShowPw(v => !v)} hitSlop={12}>
-                  <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
-                </Pressable>
-              }
-            />
-            {error && <Text style={styles.error} testID="login-error">{error}</Text>}
+          <View style={s.form}>
+            <Field colors={colors} icon="mail-outline" placeholder="E-mail" value={email}
+              onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" testID="login-email-input" />
+            <Field colors={colors} icon="lock-closed-outline" placeholder="Senha" value={password}
+              onChangeText={setPassword} secureTextEntry={!showPw} testID="login-password-input"
+              right={<Pressable onPress={() => setShowPw(v => !v)} hitSlop={12}>
+                <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.muted} />
+              </Pressable>} />
+            {error && <Text style={s.error} testID="login-error">{error}</Text>}
 
             <Pressable
               testID="login-submit-button"
-              style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.9 }]}
+              style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.9 }]}
               onPress={submit}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryTxt}>Entrar</Text>}
+              {loading ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={s.primaryTxt}>Entrar</Text>}
             </Pressable>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} /><Text style={styles.dividerTxt}>ou</Text><View style={styles.divider} />
+            <View style={s.dividerRow}>
+              <View style={s.divider} /><Text style={s.dividerTxt}>ou</Text><View style={s.divider} />
             </View>
 
             <Pressable
               testID="login-google-button"
-              style={styles.googleBtn}
+              style={s.googleBtn}
               onPress={async () => { try { await loginWithGoogle(); } catch (e: any) { setError(e?.message); } }}
             >
               <Ionicons name="logo-google" size={20} color={colors.onSurface} />
-              <Text style={styles.googleTxt}>Entrar com Google</Text>
+              <Text style={s.googleTxt}>Entrar com Google</Text>
             </Pressable>
 
-            <Pressable onPress={() => router.push('/(auth)/register')} style={{ alignItems: 'center', marginTop: spacing.lg }} testID="login-goto-register">
-              <Text style={styles.link}>Não tem conta? <Text style={{ color: colors.brandPrimary, fontWeight: '700' }}>Cadastre-se</Text></Text>
+            <Pressable onPress={() => router.push('/(auth)/register')}
+              style={{ alignItems: 'center', marginTop: spacing.lg }} testID="login-goto-register">
+              <Text style={s.link}>Não tem conta? <Text style={{ color: colors.brandPrimary, fontWeight: '700' }}>Cadastre-se</Text></Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -89,15 +84,14 @@ export default function Login() {
   );
 }
 
-function Field({
-  icon, placeholder, value, onChangeText, secureTextEntry, autoCapitalize, keyboardType, right, testID,
-}: any) {
+function Field({ colors, icon, placeholder, value, onChangeText, secureTextEntry, autoCapitalize, keyboardType, right, testID }: any) {
+  const s = makeStyles(colors);
   return (
-    <View style={styles.field}>
+    <View style={s.field}>
       <Ionicons name={icon} size={20} color={colors.muted} />
       <TextInput
         testID={testID}
-        style={styles.input}
+        style={s.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -111,7 +105,7 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },

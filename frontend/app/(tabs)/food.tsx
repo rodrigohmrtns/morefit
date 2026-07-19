@@ -1,26 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
-import { colors, radius, shadow, spacing, typography } from '@/src/theme';
+import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Meal = {
   id: string; name: string; meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   calories: number; protein_g: number; carbs_g: number; fat_g: number; portion?: string;
 };
 
-const CATS: { key: Meal['meal_type']; label: string; icon: any }[] = [
-  { key: 'breakfast', label: 'Café da manhã', icon: 'sunny' },
-  { key: 'lunch', label: 'Almoço', icon: 'restaurant' },
-  { key: 'dinner', label: 'Jantar', icon: 'moon' },
-  { key: 'snack', label: 'Lanches', icon: 'nutrition' },
+const CATS: { key: Meal['meal_type']; label: string; icon: any; tintKey: keyof ThemeColors }[] = [
+  { key: 'breakfast', label: 'Café da manhã', icon: 'sunny', tintKey: 'tintButter' },
+  { key: 'lunch', label: 'Almoço', icon: 'restaurant', tintKey: 'tintMint' },
+  { key: 'dinner', label: 'Jantar', icon: 'moon', tintKey: 'tintLavender' },
+  { key: 'snack', label: 'Lanches', icon: 'nutrition', tintKey: 'tintPeach' },
 ];
 
 export default function FoodDiary() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [meals, setMeals] = useState<Meal[]>([]);
 
   const load = useCallback(async () => {
@@ -29,54 +31,51 @@ export default function FoodDiary() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const total = meals.reduce((s, m) => s + (m.calories || 0), 0);
-
-  const del = async (id: string) => {
-    try { await api(`/meals/${id}`, { method: 'DELETE' }); load(); } catch {}
-  };
+  const del = async (id: string) => { try { await api(`/meals/${id}`, { method: 'DELETE' }); load(); } catch {} };
 
   return (
-    <View style={styles.root} testID="food-screen">
+    <View style={s.root} testID="food-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
-        <View style={styles.header}>
+        <View style={s.header}>
           <View>
-            <Text style={styles.title}>Diário Alimentar</Text>
-            <Text style={styles.sub}>Hoje • {Math.round(total)} kcal registradas</Text>
+            <Text style={s.title}>Diário Alimentar</Text>
+            <Text style={s.sub}>Hoje • {Math.round(total)} kcal registradas</Text>
           </View>
-          <Pressable style={styles.aiPill} onPress={() => router.push('/scan')} testID="food-ai-fab">
-            <Ionicons name="sparkles" size={16} color="#fff" />
-            <Text style={styles.aiPillTxt}>Scan IA</Text>
+          <Pressable style={s.aiPill} onPress={() => router.push('/scan')} testID="food-ai-fab">
+            <Ionicons name="sparkles" size={16} color={colors.brandDark} />
+            <Text style={s.aiPillTxt}>Scan IA</Text>
           </Pressable>
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={s.content}>
         {CATS.map(cat => {
           const items = meals.filter(m => m.meal_type === cat.key);
-          const cal = items.reduce((s, m) => s + m.calories, 0);
+          const cal = items.reduce((sum, m) => sum + m.calories, 0);
+          const tint = colors[cat.tintKey] as string;
           return (
-            <View key={cat.key} style={styles.section}>
-              <View style={styles.sectionHead}>
-                <View style={styles.sectionHeadLeft}>
-                  <Ionicons name={cat.icon} size={18} color={colors.brandPrimary} />
-                  <Text style={styles.sectionTitle}>{cat.label}</Text>
+            <View key={cat.key} style={s.section}>
+              <View style={s.sectionHead}>
+                <View style={s.sectionHeadLeft}>
+                  <View style={[s.catIcon, { backgroundColor: tint }]}>
+                    <Ionicons name={cat.icon} size={16} color={colors.onTint} />
+                  </View>
+                  <Text style={s.sectionTitle}>{cat.label}</Text>
                 </View>
-                <Text style={styles.sectionMeta}>{Math.round(cal)} kcal</Text>
+                <Text style={s.sectionMeta}>{Math.round(cal)} kcal</Text>
               </View>
-              <View style={styles.list}>
+              <View style={s.list}>
                 {items.length === 0 ? (
-                  <Pressable
-                    onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })}
-                    style={styles.emptyRow}
-                    testID={`food-empty-${cat.key}`}
-                  >
-                    <View style={styles.plusBadge}><Ionicons name="add" size={18} color={colors.brandPrimary} /></View>
-                    <Text style={styles.emptyTxt}>Adicionar refeição</Text>
+                  <Pressable onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })}
+                    style={s.emptyRow} testID={`food-empty-${cat.key}`}>
+                    <View style={s.plusBadge}><Ionicons name="add" size={18} color={colors.brandDark} /></View>
+                    <Text style={s.emptyTxt}>Adicionar refeição</Text>
                   </Pressable>
                 ) : items.map(m => (
-                  <View key={m.id} style={styles.mealRow}>
+                  <View key={m.id} style={s.mealRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.mealName}>{m.name}</Text>
-                      <Text style={styles.mealMeta}>
+                      <Text style={s.mealName}>{m.name}</Text>
+                      <Text style={s.mealMeta}>
                         {Math.round(m.calories)} kcal • P {Math.round(m.protein_g)}g • C {Math.round(m.carbs_g)}g • G {Math.round(m.fat_g)}g
                       </Text>
                     </View>
@@ -86,9 +85,10 @@ export default function FoodDiary() {
                   </View>
                 ))}
                 {items.length > 0 && (
-                  <Pressable onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })} style={styles.addMore} testID={`food-add-${cat.key}`}>
+                  <Pressable onPress={() => router.push({ pathname: '/scan', params: { meal_type: cat.key } })}
+                    style={s.addMore} testID={`food-add-${cat.key}`}>
                     <Ionicons name="add" size={16} color={colors.brandPrimary} />
-                    <Text style={styles.addMoreTxt}>Adicionar mais</Text>
+                    <Text style={s.addMoreTxt}>Adicionar mais</Text>
                   </Pressable>
                 )}
               </View>
@@ -101,22 +101,23 @@ export default function FoodDiary() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { ...typography.displayMedium, color: colors.onSurface },
   sub: { ...typography.caption, color: colors.muted, marginTop: 2 },
   aiPill: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center', backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.pill },
-  aiPillTxt: { color: '#fff', ...typography.caption, fontWeight: '700' },
+  aiPillTxt: { color: colors.brandDark, ...typography.caption, fontWeight: '700' },
   content: { padding: spacing.xl, gap: spacing.lg },
   section: { gap: spacing.sm },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  catIcon: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { ...typography.headline, color: colors.onSurface },
   sectionMeta: { ...typography.caption, color: colors.muted },
   list: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   emptyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  plusBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  plusBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
   emptyTxt: { ...typography.body, color: colors.onSurfaceSecondary },
   mealRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.divider, gap: spacing.md },
   mealName: { ...typography.bodyStrong, color: colors.onSurface },

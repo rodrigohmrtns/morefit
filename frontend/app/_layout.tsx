@@ -1,23 +1,35 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { LogBox, StatusBar } from 'react-native';
+import { LogBox, StatusBar, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { ThemeProvider, useTheme } from '@/src/theme';
+import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
+
+function ThemedStack() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+      <StatusBar
+        barStyle={colors.mode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.surface}
+      />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
 
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded || error) SplashScreen.hideAsync();
   }, [loaded, error]);
 
   if (!loaded && !error) return null;
@@ -25,10 +37,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#F2F4F2" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F2F4F2' } }} />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ThemedStack />
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

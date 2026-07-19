@@ -17,10 +17,13 @@ export type User = {
   daily_calorie_goal?: number;
   daily_water_ml_goal?: number;
   daily_steps_goal?: number;
-  goal?: 'lose' | 'maintain' | 'gain';
+  daily_sleep_hours_goal?: number;
+  goal?: 'lose' | 'maintain' | 'gain' | 'improve_health';
   activity_level?: string;
   gender?: string | null;
   birth_date?: string | null;
+  target_date?: string | null;
+  photo_base64?: string | null;
 };
 
 type Ctx = {
