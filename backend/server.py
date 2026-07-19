@@ -149,7 +149,14 @@ class ProfileIn(BaseModel):
 class WeightIn(BaseModel):
     weight_kg: float
     date: Optional[str] = None
+    time: Optional[str] = None  # HH:MM
     note: Optional[str] = None
+    source: Optional[Literal["manual", "bluetooth"]] = "manual"
+    body_fat_pct: Optional[float] = None
+    muscle_mass_kg: Optional[float] = None
+    body_water_pct: Optional[float] = None
+    waist_cm: Optional[float] = None
+    hip_cm: Optional[float] = None
 
 
 class MealIn(BaseModel):
@@ -327,16 +334,23 @@ async def update_profile(payload: ProfileIn, user: dict = Depends(current_user))
 # -------------------- Weight --------------------
 @api.post("/weight")
 async def add_weight(payload: WeightIn, user: dict = Depends(current_user)):
+    d = payload.dict(exclude_none=False)
     entry = {
         "id": new_id("wt"),
         "user_id": user["user_id"],
-        "weight_kg": payload.weight_kg,
         "date": payload.date or today_iso(),
+        "time": payload.time,
         "note": payload.note,
+        "source": payload.source or "manual",
+        "weight_kg": payload.weight_kg,
+        "body_fat_pct": payload.body_fat_pct,
+        "muscle_mass_kg": payload.muscle_mass_kg,
+        "body_water_pct": payload.body_water_pct,
+        "waist_cm": payload.waist_cm,
+        "hip_cm": payload.hip_cm,
         "created_at": now_utc().isoformat(),
     }
     await db.weights.insert_one(entry)
-    # keep starting weight if first entry
     if user.get("starting_weight_kg") is None:
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"starting_weight_kg": payload.weight_kg}})
     return {k: v for k, v in entry.items() if k != "_id"}
@@ -346,6 +360,202 @@ async def add_weight(payload: WeightIn, user: dict = Depends(current_user)):
 async def list_weight(user: dict = Depends(current_user), limit: int = 90):
     items = await db.weights.find({"user_id": user["user_id"]}, {"_id": 0}).sort("date", -1).to_list(limit)
     return {"items": items}
+
+
+@api.delete("/weight/{entry_id}")
+async def delete_weight(entry_id: str, user: dict = Depends(current_user)):
+    await db.weights.delete_one({"id": entry_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+# -------------------- Analytics (Module 5) --------------------
+_METRIC_FIELDS = {
+    "weight": "weight_kg",
+    "bmi": None,  # derived
+    "body_fat": "body_fat_pct",
+    "muscle": "muscle_mass_kg",
+    "water_pct": "body_water_pct",
+    "waist": "waist_cm",
+    "hip": "hip_cm",
+}
+
+
+def _linear_regression(xs: list[float], ys: list[float]) -> tuple[float, float]:
+    """Return (slope, intercept) for y = mx + b. xs and ys equal length."""
+    n = len(xs)
+    if n < 2:
+        return 0.0, ys[0] if ys else 0.0
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    num = sum((xs[i] - mx) * (ys[i] - my) for i in range(n))
+    den = sum((xs[i] - mx) ** 2 for i in range(n)) or 1e-9
+    slope = num / den
+    intercept = my - slope * mx
+    return slope, intercept
+
+
+def _period_days(period: str) -> int:
+    return {"day": 7, "week": 30, "month": 180, "year": 730}.get(period, 30)
+
+
+@api.get("/analytics/weight")
+async def analytics_weight(
+    metric: str = "weight",
+    period: str = "week",
+    user: dict = Depends(current_user),
+):
+    """Return series + stats for the given metric+period.
+
+    Metrics: weight | bmi | body_fat | muscle | water_pct | waist | hip
+    Period:  day | week | month | year (window length in days).
+    """
+    if metric not in _METRIC_FIELDS:
+        raise HTTPException(400, "Métrica inválida")
+    days = _period_days(period)
+    cutoff = (now_utc().date() - timedelta(days=days)).isoformat()
+    docs = await db.weights.find(
+        {"user_id": user["user_id"], "date": {"$gte": cutoff}}, {"_id": 0},
+    ).sort("date", 1).to_list(500)
+
+    height_m = (user.get("height_cm") or 0) / 100.0
+    series = []
+    for d in docs:
+        val = None
+        if metric == "weight":
+            val = d.get("weight_kg")
+        elif metric == "bmi":
+            w = d.get("weight_kg")
+            if w and height_m > 0:
+                val = round(w / (height_m * height_m), 2)
+        else:
+            field = _METRIC_FIELDS[metric]
+            val = d.get(field)
+        if val is not None:
+            series.append({"date": d["date"], "value": float(val)})
+
+    values = [p["value"] for p in series]
+    stats: dict[str, Any] = {
+        "current": values[-1] if values else None,
+        "first": values[0] if values else None,
+        "diff": None,
+        "avg": None,
+        "min": None,
+        "max": None,
+        "trend_per_week": None,
+        "predicted_30d": None,
+    }
+    if values:
+        stats["diff"] = round(values[-1] - values[0], 2)
+        stats["avg"] = round(sum(values) / len(values), 2)
+        stats["min"] = min(values)
+        stats["max"] = max(values)
+        if len(values) >= 2:
+            xs = list(range(len(values)))
+            slope, intercept = _linear_regression(xs, values)
+            n = len(values)
+            # slope is per-sample; approx per-day using unique dates span
+            try:
+                first_d = datetime.fromisoformat(series[0]["date"]).date()
+                last_d = datetime.fromisoformat(series[-1]["date"]).date()
+                span_days = max(1, (last_d - first_d).days)
+                per_day = (values[-1] - values[0]) / span_days
+            except Exception:
+                per_day = slope
+            stats["trend_per_week"] = round(per_day * 7, 3)
+            stats["predicted_30d"] = round(values[-1] + per_day * 30, 2)
+
+    return {"metric": metric, "period": period, "series": series, "stats": stats}
+
+
+@api.get("/analytics/compare")
+async def analytics_compare(user: dict = Depends(current_user), period: str = "month"):
+    """Return one entry per available metric for comparison charts."""
+    days = _period_days(period)
+    cutoff = (now_utc().date() - timedelta(days=days)).isoformat()
+    docs = await db.weights.find(
+        {"user_id": user["user_id"], "date": {"$gte": cutoff}}, {"_id": 0},
+    ).sort("date", 1).to_list(500)
+
+    def _series(getter):
+        out = []
+        for d in docs:
+            v = getter(d)
+            if v is not None:
+                out.append({"date": d["date"], "value": float(v)})
+        return out
+
+    height_m = (user.get("height_cm") or 0) / 100.0
+    def _bmi(d):
+        w = d.get("weight_kg")
+        return round(w / (height_m * height_m), 2) if w and height_m > 0 else None
+
+    return {
+        "period": period,
+        "metrics": {
+            "weight": _series(lambda d: d.get("weight_kg")),
+            "bmi": _series(_bmi),
+            "body_fat": _series(lambda d: d.get("body_fat_pct")),
+            "muscle": _series(lambda d: d.get("muscle_mass_kg")),
+            "water_pct": _series(lambda d: d.get("body_water_pct")),
+            "waist": _series(lambda d: d.get("waist_cm")),
+            "hip": _series(lambda d: d.get("hip_cm")),
+        },
+    }
+
+
+# -------------------- Photo comparison (Module 6) --------------------
+class PhotoCompareIn(BaseModel):
+    photo_id_before: str
+    photo_id_after: str
+
+
+@api.post("/photos/compare")
+async def compare_photos(payload: PhotoCompareIn, user: dict = Depends(current_user)):
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
+    before = await db.photos.find_one({"id": payload.photo_id_before, "user_id": user["user_id"]}, {"_id": 0})
+    after = await db.photos.find_one({"id": payload.photo_id_after, "user_id": user["user_id"]}, {"_id": 0})
+    if not before or not after:
+        raise HTTPException(404, "Fotos não encontradas")
+    try:
+        from emergentintegrations.llm.chat import ImageContent, LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(500, f"IA indisponível: {e}")
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"compare_{user['user_id']}_{uuid.uuid4().hex[:8]}",
+        system_message=(
+            "Você é uma analista de composição corporal. Compare as duas fotos (a primeira é 'antes' e "
+            "a segunda é 'depois') e responda APENAS um JSON no formato: "
+            '{"progress_score": 0-100, "changes": ["lista de mudanças observadas"], '
+            '"encouragement": "texto motivacional curto em pt-BR", '
+            '"summary": "resumo em uma frase em pt-BR"}. '
+            "Nunca inclua texto fora do JSON. Seja gentil e realista."
+        ),
+    ).with_model("gemini", "gemini-2.5-flash")
+
+    msg = UserMessage(
+        text="Compare a foto ANTES (primeira) com a foto DEPOIS (segunda). Retorne apenas o JSON.",
+        file_contents=[
+            ImageContent(image_base64=before["image_base64"]),
+            ImageContent(image_base64=after["image_base64"]),
+        ],
+    )
+    try:
+        resp = await chat.send_message(msg)
+    except Exception as e:
+        log.error("Gemini compare error: %s", e)
+        raise HTTPException(502, f"Falha ao comparar: {e}")
+    data = _extract_json(resp or "")
+    if not data:
+        raise HTTPException(422, "Não foi possível interpretar a análise")
+    return {
+        "analysis": data,
+        "before": {"id": before["id"], "date": before["date"]},
+        "after": {"id": after["id"], "date": after["date"]},
+    }
+
 
 
 # -------------------- Meals --------------------

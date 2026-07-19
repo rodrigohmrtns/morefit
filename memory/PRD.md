@@ -63,9 +63,44 @@ Cards implementados na home (`/(tabs)/index.tsx`):
 - Cards com radius 24, chips 999
 - Tipografia bold + generous whitespace
 
-## Testado
-- Backend endpoints (13/13 no MVP + novos endpoints testados via curl)
-- Frontend: onboarding, login, home (light + dark), profile (com toggle de tema), profile-edit
+## Módulo 4 – Controle de Peso (v1.2)
+Screen `/weight-log` com:
+- Hero lime com peso em destaque
+- Data (dd/mm/aaaa) e Hora (HH:MM)
+- Origem: **Manual** ou **Balança Bluetooth** (hint "em breve")
+- Observação (textarea)
+- Composição corporal opcional: gordura %, massa muscular kg, água %, cintura cm, quadril cm
+
+Análises expostas em Progress:
+- Peso Atual, Diferença no período, Média/Mín/Máx
+- **Tendência semanal** (regressão linear per-day × 7)
+- **Peso Previsto em 30 dias** (extrapolação da regressão)
+- Marcador previsto (círculo lime dashed) no gráfico
+
+## Módulo 5 – Gráficos (v1.2)
+Progress tab agora suporta:
+- **Períodos**: Diário (7d), Semanal (30d), Mensal (180d), Anual (730d)
+- **Métricas**: Peso, IMC, Gordura, Massa, Água, Cintura, Quadril
+- **Comparação**: grid 2x com mini-charts de todas as métricas
+- IMC derivado de altura + peso, formato profissional com trend line + área
+
+Endpoints:
+- `GET /api/analytics/weight?metric=<m>&period=<p>` → series + stats
+- `GET /api/analytics/compare?period=<p>` → todas as métricas para comparação
+
+## Módulo 6 – Fotos (v1.2)
+Screen `/photos` com 3 tabs:
+- **Álbum** – grid 2 colunas com data + delete
+- **Linha do tempo** – agrupado por mês, scroll horizontal
+- **Comparador IA** – seleção Antes/Depois com scroll horizontal de thumbnails, botão "Sugerir par" (primeiro + último), botão **"Analisar com IA"** (Gemini 2.5 Flash)
+
+Análise IA retorna:
+- `progress_score` (0-100) com badge lime
+- `summary` (frase resumo)
+- `changes` (lista de mudanças observadas)
+- `encouragement` (mensagem motivacional)
+
+Endpoint: `POST /api/photos/compare` `{ photo_id_before, photo_id_after }`
 
 ## Próximas iterações
 - Chat IA real no /coach (streaming Gemini)
