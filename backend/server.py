@@ -32,6 +32,7 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "dev_secret")
 JWT_ALG = "HS256"
 JWT_EXP_DAYS = 30
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -249,8 +250,33 @@ async def shutdown() -> None:
 
 
 # -------------------- Auth Routes --------------------
+def _is_premium(u: dict) -> bool:
+    exp = u.get("premium_expires_at")
+    if not exp:
+        return False
+    try:
+        if isinstance(exp, str):
+            exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+        else:
+            exp_dt = exp
+        if exp_dt.tzinfo is None:
+            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+        return exp_dt > now_utc()
+    except Exception:
+        return False
+
+
 def _public_user(u: dict) -> dict:
-    return {k: v for k, v in u.items() if k not in ("password_hash", "_id")}
+    out = {k: v for k, v in u.items() if k not in ("password_hash", "_id")}
+    out["is_premium"] = _is_premium(u)
+    return out
+
+
+async def require_premium(user: dict = Depends(current_user)) -> dict:
+    """FastAPI dependency: reject non-premium users with HTTP 402."""
+    if not _is_premium(user):
+        raise HTTPException(402, "Recurso Premium — atualize seu plano para continuar")
+    return user
 
 
 @api.get("/")
@@ -339,7 +365,7 @@ async def google_session(payload: GoogleSessionIn):
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(current_user)):
-    return {"user": user}
+    return {"user": _public_user(user)}
 
 
 @api.post("/auth/logout")
@@ -742,7 +768,7 @@ class PhotoCompareIn(BaseModel):
 
 
 @api.post("/photos/compare")
-async def compare_photos(payload: PhotoCompareIn, user: dict = Depends(current_user)):
+async def compare_photos(payload: PhotoCompareIn, user: dict = Depends(require_premium)):
     if not EMERGENT_LLM_KEY:
         raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
     before = await db.photos.find_one({"id": payload.photo_id_before, "user_id": user["user_id"]}, {"_id": 0})
@@ -832,7 +858,7 @@ def _extract_json(text: str) -> dict:
 
 
 @api.post("/meals/analyze")
-async def analyze_meal(payload: MealAnalyzeIn, user: dict = Depends(current_user)):
+async def analyze_meal(payload: MealAnalyzeIn, user: dict = Depends(require_premium)):
     """Analyze meal photo with Gemini and return macros."""
     if not EMERGENT_LLM_KEY:
         raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
@@ -1338,7 +1364,7 @@ class ShareIn(BaseModel):
 
 
 @api.post("/professionals/share")
-async def create_share(payload: ShareIn, user: dict = Depends(current_user)):
+async def create_share(payload: ShareIn, user: dict = Depends(require_premium)):
     token = uuid.uuid4().hex[:20]
     entry = {
         "id": new_id("share"),
@@ -1470,7 +1496,7 @@ th {{ font-weight:600; color:#83877F; text-transform:uppercase; letter-spacing:.
 
 
 @api.get("/report/pdf")
-async def report_pdf(user: dict = Depends(current_user), type: Optional[str] = "all"):
+async def report_pdf(user: dict = Depends(require_premium), type: Optional[str] = "all"):
     """Generates a PDF summary of user data. `type` filters sections:
     all | nutritionist | personal | doctor. Returns application/pdf.
     """
@@ -1612,7 +1638,7 @@ async def _build_user_context(user: dict) -> str:
 
 
 @api.post("/coach/chat")
-async def coach_chat(payload: CoachMsgIn, user: dict = Depends(current_user)):
+async def coach_chat(payload: CoachMsgIn, user: dict = Depends(require_premium)):
     if not EMERGENT_LLM_KEY:
         raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
     try:
@@ -1660,7 +1686,7 @@ async def coach_messages(user: dict = Depends(current_user), session_id: Optiona
 
 
 @api.post("/coach/analyze")
-async def coach_analyze(user: dict = Depends(current_user)):
+async def coach_analyze(user: dict = Depends(require_premium)):
     """Gera um relatório automático da evolução do usuário."""
     if not EMERGENT_LLM_KEY:
         raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
@@ -2254,6 +2280,225 @@ async def company_report_pdf(company_id: str, user: dict = Depends(current_user)
         content=pdf_bytes, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="vitatracker-corporate-{company["name"].replace(" ", "_")}.pdf"'},
     )
+
+
+# ==================== Módulo Billing / Assinaturas Premium ====================
+PLAN_CATALOG = {
+    "monthly": {"amount": 19.90, "days": 30, "label": "Premium Mensal"},
+    "annual": {"amount": 149.90, "days": 365, "label": "Premium Anual"},
+}
+
+
+class CheckoutIn(BaseModel):
+    plan: Literal["monthly", "annual"]
+    origin_url: Optional[str] = None  # Frontend origin for redirect URLs (set by client)
+
+
+@api.post("/billing/checkout")
+async def billing_checkout(payload: CheckoutIn, request: Request, user: dict = Depends(current_user)):
+    """Create a Stripe checkout session. Payment grants premium access for `days`."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(500, "Stripe não configurado")
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+    except Exception as e:
+        raise HTTPException(500, f"Biblioteca de pagamento indisponível: {e}")
+
+    plan_info = PLAN_CATALOG[payload.plan]
+    # Build return URLs — use client-provided origin (mobile/web) or fall back to request host
+    origin = (payload.origin_url or "").rstrip("/")
+    if not origin:
+        origin = str(request.base_url).rstrip("/")
+    success_url = f"{origin}/billing-return?session_id={{CHECKOUT_SESSION_ID}}&status=success"
+    cancel_url = f"{origin}/billing-return?status=cancel"
+
+    checkout = StripeCheckout(
+        api_key=STRIPE_API_KEY,
+        webhook_url=f"{str(request.base_url).rstrip('/')}/api/webhook/stripe",
+    )
+    req = CheckoutSessionRequest(
+        amount=plan_info["amount"],
+        currency="brl",
+        quantity=1,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "user_id": user["user_id"],
+            "plan": payload.plan,
+            "days": str(plan_info["days"]),
+            "email": user.get("email") or "",
+        },
+    )
+    try:
+        session = await checkout.create_checkout_session(req)
+    except Exception as e:
+        log.error("Stripe session error: %s", e)
+        raise HTTPException(502, f"Falha ao criar sessão de pagamento: {e}")
+
+    # Persist tx record for auditing + polling
+    await db.payment_transactions.insert_one({
+        "id": new_id("tx"),
+        "user_id": user["user_id"],
+        "session_id": session.session_id,
+        "url": session.url,
+        "amount": plan_info["amount"],
+        "currency": "brl",
+        "plan": payload.plan,
+        "days": plan_info["days"],
+        "status": "created",           # created | paid | canceled | expired
+        "payment_status": "unpaid",
+        "created_at": now_utc().isoformat(),
+        "metadata": req.metadata,
+    })
+    return {
+        "session_id": session.session_id,
+        "checkout_url": session.url,
+        "plan": payload.plan,
+        "amount": plan_info["amount"],
+    }
+
+
+async def _apply_paid_transaction(tx: dict) -> None:
+    """Grant premium access based on the transaction's plan."""
+    days = int(tx.get("days") or PLAN_CATALOG.get(tx.get("plan"), {}).get("days") or 30)
+    user_id = tx["user_id"]
+    u = await db.users.find_one({"user_id": user_id}, {"_id": 0, "premium_expires_at": 1})
+    now = now_utc()
+    base = now
+    if u and u.get("premium_expires_at"):
+        try:
+            cur = u["premium_expires_at"]
+            cur_dt = datetime.fromisoformat(cur.replace("Z", "+00:00")) if isinstance(cur, str) else cur
+            if cur_dt.tzinfo is None:
+                cur_dt = cur_dt.replace(tzinfo=timezone.utc)
+            if cur_dt > now:
+                base = cur_dt
+        except Exception:
+            pass
+    new_exp = base + timedelta(days=days)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "subscription_tier": "premium",
+            "premium_since": tx.get("paid_at") or now.isoformat(),
+            "premium_expires_at": new_exp.isoformat(),
+            "last_plan": tx.get("plan"),
+        }},
+    )
+
+
+@api.get("/billing/status/{session_id}")
+async def billing_status(session_id: str, user: dict = Depends(current_user)):
+    """Poll a session and, if paid, grant premium (idempotent)."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(500, "Stripe não configurado")
+    tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not tx or tx["user_id"] != user["user_id"]:
+        raise HTTPException(404, "Sessão não encontrada")
+
+    # If already applied, short-circuit
+    if tx.get("status") == "paid":
+        u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        return {"status": "paid", "premium_expires_at": u.get("premium_expires_at") if u else None,
+                "amount": tx["amount"], "plan": tx["plan"]}
+
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+        checkout = StripeCheckout(api_key=STRIPE_API_KEY)
+        st = await checkout.get_checkout_status(session_id)
+    except Exception as e:
+        raise HTTPException(502, f"Falha ao consultar pagamento: {e}")
+
+    payment_status = st.payment_status
+    session_status = st.status
+    new_status = tx["status"]
+    if payment_status == "paid" and session_status == "complete":
+        new_status = "paid"
+    elif session_status in ("expired",):
+        new_status = "expired"
+
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {"status": new_status, "payment_status": payment_status,
+                  "last_checked": now_utc().isoformat(),
+                  "paid_at": now_utc().isoformat() if new_status == "paid" and tx["status"] != "paid" else tx.get("paid_at")}},
+    )
+    if new_status == "paid" and tx["status"] != "paid":
+        # Apply premium (idempotent per session)
+        tx_after = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        await _apply_paid_transaction(tx_after or tx)
+
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {
+        "status": new_status,
+        "payment_status": payment_status,
+        "session_status": session_status,
+        "amount": tx["amount"],
+        "plan": tx["plan"],
+        "premium_expires_at": u.get("premium_expires_at") if u else None,
+    }
+
+
+@app.post("/api/webhook/stripe", include_in_schema=False)
+async def stripe_webhook(request: Request):
+    """Receive Stripe events and grant premium on successful payment."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(500, "Stripe não configurado")
+    body = await request.body()
+    sig = request.headers.get("stripe-signature")
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+        checkout = StripeCheckout(api_key=STRIPE_API_KEY)
+        event = await checkout.handle_webhook(body, sig)
+    except Exception as e:
+        log.warning("Webhook parse error: %s", e)
+        raise HTTPException(400, "Webhook inválido")
+
+    # Log event
+    await db.webhook_events.insert_one({
+        "id": new_id("evt"),
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "session_id": event.session_id,
+        "payment_status": event.payment_status,
+        "metadata": event.metadata or {},
+        "received_at": now_utc().isoformat(),
+    })
+
+    if event.payment_status == "paid" and event.session_id:
+        tx = await db.payment_transactions.find_one({"session_id": event.session_id}, {"_id": 0})
+        if tx and tx.get("status") != "paid":
+            await db.payment_transactions.update_one(
+                {"session_id": event.session_id},
+                {"$set": {"status": "paid", "payment_status": "paid",
+                          "paid_at": now_utc().isoformat()}},
+            )
+            tx_after = await db.payment_transactions.find_one({"session_id": event.session_id}, {"_id": 0})
+            await _apply_paid_transaction(tx_after or tx)
+    return {"ok": True}
+
+
+@api.get("/billing/subscription")
+async def my_subscription(user: dict = Depends(current_user)):
+    """Return current premium status + last transactions."""
+    u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {}
+    txs = await db.payment_transactions.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(10)
+    return {
+        "is_premium": _is_premium(u),
+        "premium_expires_at": u.get("premium_expires_at"),
+        "premium_since": u.get("premium_since"),
+        "last_plan": u.get("last_plan"),
+        "plans": PLAN_CATALOG,
+        "transactions": txs,
+    }
+
+
+@api.get("/billing/plans")
+async def billing_plans():
+    """Public — list available plans."""
+    return {"plans": [{"id": k, **v} for k, v in PLAN_CATALOG.items()]}
 
 
 app.include_router(api)

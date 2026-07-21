@@ -31,6 +31,42 @@ def auth(api_client):
     return {"token": data["token"], "user": data["user"], "headers": {"Authorization": f"Bearer {data['token']}"}}
 
 
+@pytest.fixture(scope="module")
+def premium_auth(api_client, auth):
+    """Grant premium tier directly in DB so tests can hit premium-gated endpoints."""
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    from motor.motor_asyncio import AsyncIOMotorClient
+    import os as _os
+    mongo_url = _os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+
+    async def _grant():
+        cli = AsyncIOMotorClient(mongo_url)
+        db = cli[_os.environ.get("DB_NAME", "vitatracker")]
+        exp = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+        await db.users.update_one(
+            {"email": TEST_EMAIL},
+            {"$set": {"subscription_tier": "premium", "premium_expires_at": exp,
+                      "premium_since": datetime.now(timezone.utc).isoformat(),
+                      "last_plan": "annual"}},
+        )
+        cli.close()
+
+    async def _revoke():
+        cli = AsyncIOMotorClient(mongo_url)
+        db = cli[_os.environ.get("DB_NAME", "vitatracker")]
+        await db.users.update_one(
+            {"email": TEST_EMAIL},
+            {"$unset": {"subscription_tier": "", "premium_expires_at": "",
+                        "premium_since": "", "last_plan": ""}},
+        )
+        cli.close()
+
+    asyncio.get_event_loop().run_until_complete(_grant())
+    yield auth
+    asyncio.get_event_loop().run_until_complete(_revoke())
+
+
 # ---------- Module 16: Gamification ----------
 class TestGamification:
     def test_gamification_shape(self, api_client, auth):
@@ -146,7 +182,8 @@ class TestProfessionalShare:
     share_id = None
     share_token = None
 
-    def test_create_share(self, api_client, auth):
+    def test_create_share(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
                             json={"professional_type": "nutritionist", "professional_name": "Dra. Marina"})
         assert r.status_code == 200, r.text
@@ -158,13 +195,15 @@ class TestProfessionalShare:
         TestProfessionalShare.share_id = j["id"]
         TestProfessionalShare.share_token = j["token"]
 
-    def test_list_shares(self, api_client, auth):
+    def test_list_shares(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.get(f"{API}/professionals/shares", headers=auth["headers"])
         assert r.status_code == 200
         ids = [s["id"] for s in r.json()["items"]]
         assert TestProfessionalShare.share_id in ids
 
-    def test_public_report_html_nutritionist(self, api_client, auth):
+    def test_public_report_html_nutritionist(self, api_client, premium_auth):
+        auth = premium_auth
         tok = TestProfessionalShare.share_token
         r = requests.get(f"{API}/reports/public/{tok}")
         assert r.status_code == 200, f"status={r.status_code} body[:200]={r.text[:200]}"
@@ -176,7 +215,8 @@ class TestProfessionalShare:
         assert "Sono" not in html_raw, "nutritionist report should NOT contain 'Sono'"
         assert "Exercícios" not in html_raw, "nutritionist report should NOT contain 'Exercícios'"
 
-    def test_public_report_personal_no_meals(self, api_client, auth):
+    def test_public_report_personal_no_meals(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
                             json={"professional_type": "personal"})
         assert r.status_code == 200
@@ -189,7 +229,8 @@ class TestProfessionalShare:
         # cleanup
         api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
 
-    def test_public_report_doctor_has_sleep(self, api_client, auth):
+    def test_public_report_doctor_has_sleep(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
                             json={"professional_type": "doctor"})
         assert r.status_code == 200
@@ -203,7 +244,8 @@ class TestProfessionalShare:
         assert "Sono" in rr.text, "doctor report should contain 'Sono'"
         api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
 
-    def test_legacy_report_route_backward_compat(self, api_client, auth):
+    def test_legacy_report_route_backward_compat(self, api_client, premium_auth):
+        auth = premium_auth
         """Legacy /report/{token} should still work as backward-compat delegate (via localhost only, since ingress may not forward /report/*)."""
         r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
                             json={"professional_type": "doctor"})
@@ -214,20 +256,23 @@ class TestProfessionalShare:
         assert rr.status_code == 200
         api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
 
-    def test_report_pdf_all(self, api_client, auth):
+    def test_report_pdf_all(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.get(f"{API}/report/pdf", headers=auth["headers"])
         assert r.status_code == 200, r.text[:300]
         assert r.headers.get("content-type", "").startswith("application/pdf")
         assert r.content[:4] == b"%PDF"
 
-    def test_report_pdf_nutritionist_filename(self, api_client, auth):
+    def test_report_pdf_nutritionist_filename(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.get(f"{API}/report/pdf?type=nutritionist", headers=auth["headers"])
         assert r.status_code == 200
         assert r.content[:4] == b"%PDF"
         disp = r.headers.get("content-disposition", "")
         assert "nutritionist" in disp.lower()
 
-    def test_delete_share(self, api_client, auth):
+    def test_delete_share(self, api_client, premium_auth):
+        auth = premium_auth
         r = api_client.delete(f"{API}/professionals/shares/{TestProfessionalShare.share_id}", headers=auth["headers"])
         assert r.status_code == 200
         assert r.json() == {"ok": True}

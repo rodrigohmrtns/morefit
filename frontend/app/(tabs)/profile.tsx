@@ -98,6 +98,25 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ marginLeft: 'auto' }} />
         </Pressable>
 
+        <Pressable
+          style={[s.premiumCta, user?.is_premium && s.premiumCtaActive]}
+          onPress={() => router.push('/paywall')}
+          testID="profile-premium-cta"
+        >
+          <View style={s.premiumIcon}>
+            <Ionicons name="diamond" size={22} color={colors.brandDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.premiumTitle}>{user?.is_premium ? 'Você é Premium ✨' : 'Desbloqueie o Premium'}</Text>
+            <Text style={s.premiumSub}>
+              {user?.is_premium
+                ? `Ativo até ${user.premium_expires_at ? new Date(user.premium_expires_at).toLocaleDateString('pt-BR') : '—'}`
+                : 'IA Coach, Scanner por foto e relatórios PDF'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.brandDark} />
+        </Pressable>
+
         <Text style={s.sectionLabel}>Segurança</Text>
         <View style={s.card}>
           <SecurityRow colors={colors} icon="finger-print" label="Biometria" value="Em breve" />
@@ -155,6 +174,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   themeChipTxt: { ...typography.caption, color: colors.onSurface },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md },
   linkTxt: { ...typography.body, color: colors.brandDark, fontWeight: '700' },
+  premiumCta: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.tintButter, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  premiumCtaActive: { backgroundColor: colors.brandTertiary },
+  premiumIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.brandPrimary, alignItems: 'center', justifyContent: 'center' },
+  premiumTitle: { ...typography.bodyStrong, color: colors.onTint, fontSize: 14 },
+  premiumSub: { ...typography.small, color: colors.onTint, opacity: 0.75, marginTop: 2 },
   logoutBtn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.md },
   logoutTxt: { color: colors.error, fontWeight: '700', ...typography.body },
   footer: { textAlign: 'center', ...typography.small, color: colors.muted, marginTop: spacing.lg },

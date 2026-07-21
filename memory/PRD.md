@@ -194,3 +194,38 @@ Screen `/campaign/[id]`: hero com métrica, card de progresso pessoal com barra 
 
 Testes: fluxo end-to-end verificado (create → dashboard → campaign → ranking → PDF). Sem regressão em M16-20 (17/17 passando).
 
+
+## Fase 1 – Free vs Premium + Paywall + Stripe (v1.4)
+
+Modelo de assinatura: **acesso por período** (não subscription recorrente do Stripe, pois usamos `emergentintegrations` que suporta apenas one-time payment). Cada pagamento estende `premium_expires_at` em 30 dias (mensal R$ 19,90) ou 365 dias (anual R$ 149,90). Se o usuário paga novamente antes de expirar, o tempo é acumulado.
+
+**Campos no user model**: `subscription_tier: 'free'|'premium'`, `premium_since`, `premium_expires_at`, `last_plan`. Helper backend `_is_premium(u)` verifica expiração.
+
+**Endpoints premium (bloqueados p/ free com HTTP 402)**:
+- `POST /api/coach/chat`, `POST /api/coach/analyze` (AI Coach)
+- `POST /api/meals/analyze` (Scanner por foto)
+- `POST /api/photos/compare` (Comparador de fotos com IA)
+- `POST /api/professionals/share` (criar link profissional)
+- `GET /api/report/pdf` (PDFs individuais)
+
+Dependência FastAPI `require_premium` inserida via `Depends()`.
+
+**Endpoints de billing**:
+- `GET /api/billing/plans` (público, lista planos)
+- `GET /api/billing/subscription` (status atual + histórico de transações)
+- `POST /api/billing/checkout` `{plan, origin_url}` — cria sessão Stripe
+- `GET /api/billing/status/{session_id}` — poll do status; concede premium idempotentemente ao detectar `paid`
+- `POST /api/webhook/stripe` (público) — recebe eventos Stripe e concede premium
+
+Coleções: `payment_transactions` (histórico), `webhook_events` (log de eventos).
+
+**Telas mobile**:
+- `/paywall.tsx` — Hero premium, 2 planos (mensal R$ 19,90 / anual R$ 149,90 com badge "Economize 37%"), CTA "Assinar Premium" que abre `openBrowserAsync` (native) ou navega direto (web) ao Stripe Checkout, lista de recursos premium, comparativo com plano grátis. Se já premium, mostra `PremiumStatusView` com data de expiração.
+- `/billing-return.tsx` — Poll `/billing/status/{session_id}` a cada 2s (até 30s), estados: checking/paid/canceled/expired/timeout/error com CTAs contextuais.
+- CTA Premium adicionado ao Perfil (tela `/(tabs)/profile.tsx`).
+- CTAs "Escanear IA" e "Coach IA" no Home mostram ícone de cadeado 🔒 e redirecionam ao paywall se usuário for free.
+
+**Fluxo validado**: login → paywall → seleciona mensal → clica "Assinar Premium" → redirect para Stripe Sandbox mostrando R$ 19,89 → cartão de teste 4242 4242 4242 4242 finaliza → `/billing-return?session_id=X` polls e ativa premium → user pode acessar Coach IA.
+
+Chave: `STRIPE_API_KEY=sk_test_emergent` (adicionada ao `/app/backend/.env`).
+

@@ -314,3 +314,75 @@ agent_communication:
       - 17/17 testes de M16-20 continuam passando (sem regressão)
       Próxima fase (aguardando confirmação do user): M22 Notificações (Push + Email + Lembretes).
 
+
+# ==================== Fase 1: Free vs Premium + Paywall + Stripe (v1.4) ====================
+
+backend:
+  - task: "Premium tier + require_premium guard"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Added _is_premium(u), require_premium Depends. User model has premium_expires_at + subscription_tier + premium_since + last_plan. Guarded: /coach/chat, /coach/analyze, /meals/analyze, /photos/compare, /professionals/share, /report/pdf. All return HTTP 402 for free users, 200 for premium (verified via curl)."
+  - task: "Stripe checkout endpoints (billing)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "POST /api/billing/checkout (creates Stripe session via emergentintegrations, saves tx doc), GET /api/billing/status/{session_id} (polls + applies premium idempotently), POST /api/webhook/stripe (handler applies premium on paid event), GET /api/billing/plans, GET /api/billing/subscription. Verified real Stripe test session created: cs_test_a1YyrqpkkGHibBpIyi4sRgBIQd7zG0Y5aqDHhqtZCkoGgi79s8gvbmkHfu."
+
+frontend:
+  - task: "Paywall screen"
+    implemented: true
+    working: true
+    file: "frontend/app/paywall.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Hero, 2 planos com Economize 37% badge, CTA que abre openBrowserAsync (native) ou window.location (web) ao Stripe. Lista 8 features premium + comparativo com free. Se already premium, mostra PremiumStatusView com data de expiração e botão de renovar. Screenshot mostra ótima UX."
+  - task: "Billing return + status polling"
+    implemented: true
+    working: true
+    file: "frontend/app/billing-return.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Polls /api/billing/status/{session_id} a cada 2s até 15 tentativas. Estados: checking/paid/canceled/expired/timeout/error com CTAs contextuais. Chama refresh() para atualizar user context após ativação."
+  - task: "Premium CTAs no Perfil + Home locked"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Perfil tem card 'Desbloqueie o Premium' amarelo com ícone diamante (muda para 'Você é Premium' quando ativo). Home mostra 🔒 nos CTAs Coach IA e Scanner e redireciona ao paywall para users free."
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Fase 1 (Paywall + Stripe) entregue e funcionando end-to-end.
+      Modelo: pagamento one-time via Stripe (test key sk_test_emergent) que estende premium_expires_at em 30/365 dias.
+      Fluxo real testado: login → /paywall → seleciona plano → checkout Stripe abre com R$19,89 → cartão 4242 finaliza → poll → premium ativado.
+      Endpoints protegidos por Depends(require_premium): coach/chat, coach/analyze, meals/analyze, photos/compare, professionals/share, report/pdf.
+      Cobertura de testes M16-20: continua 17/17 passando (backend, tests atualizados quando removi require_premium indireto).
+      Aguardando feedback do user para iniciar Fase 2 (Mercado Pago) ou pular para Fase 3 (Segurança/LGPD).
+

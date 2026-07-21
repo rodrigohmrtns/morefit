@@ -24,6 +24,9 @@ export type User = {
   birth_date?: string | null;
   target_date?: string | null;
   photo_base64?: string | null;
+  is_premium?: boolean;
+  premium_expires_at?: string | null;
+  subscription_tier?: 'free' | 'premium';
 };
 
 type Ctx = {
