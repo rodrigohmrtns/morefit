@@ -97,6 +97,37 @@ const dark = {
 export type ThemeColors = typeof light;
 
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Accent colors — user-selectable (item 22 – temas customizáveis)
+// -----------------------------------------------------------------------------
+export const ACCENT_PALETTE = {
+  lime:    { primary: '#C6F14B', dark: '#26301A', onPrimary: '#0F1110', tertiary: '#EAF6D3' },
+  teal:    { primary: '#4EE0C4', dark: '#0F3A32', onPrimary: '#062621', tertiary: '#D6F7EF' },
+  coral:   { primary: '#FF8C7A', dark: '#4A1D15', onPrimary: '#FFFFFF', tertiary: '#FFE1DA' },
+  violet:  { primary: '#B47DF5', dark: '#331A56', onPrimary: '#FFFFFF', tertiary: '#EADBFB' },
+  sunset:  { primary: '#FFB347', dark: '#4A2A00', onPrimary: '#0F1110', tertiary: '#FFECC7' },
+  ocean:   { primary: '#5EB1FF', dark: '#0B3960', onPrimary: '#FFFFFF', tertiary: '#D6E9FB' },
+} as const;
+export type AccentKey = keyof typeof ACCENT_PALETTE;
+export const ACCENT_KEYS: AccentKey[] = ['lime', 'teal', 'coral', 'violet', 'sunset', 'ocean'];
+
+function applyAccent<T extends { brand: string; brandPrimary: string; brandDark: string; onBrandPrimary: string; brandTertiary: string; onBrandTertiary: string }>(
+  base: T, key: AccentKey,
+): T {
+  const a = ACCENT_PALETTE[key];
+  return {
+    ...base,
+    brand: a.primary,
+    brandPrimary: a.primary,
+    brandDark: a.dark,
+    onBrandPrimary: a.onPrimary,
+    brandTertiary: a.tertiary,
+    onBrandTertiary: a.dark,
+  };
+}
+
+
+// -----------------------------------------------------------------------------
 // Static tokens (do not vary by mode)
 // -----------------------------------------------------------------------------
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
@@ -134,19 +165,23 @@ export const shadow = {
 // Theme context & hooks
 // -----------------------------------------------------------------------------
 type Mode = 'system' | 'light' | 'dark';
-type Ctx = { colors: ThemeColors; mode: Mode; setMode: (m: Mode) => void; toggle: () => void };
+type Ctx = { colors: ThemeColors; mode: Mode; setMode: (m: Mode) => void; toggle: () => void; accent: AccentKey; setAccent: (a: AccentKey) => void };
 const THEME_KEY = 'vt_theme_mode';
+const ACCENT_KEY = 'vt_theme_accent';
 
 const ThemeCtx = createContext<Ctx | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const system = useColorScheme();
   const [mode, setModeState] = useState<Mode>('system');
+  const [accent, setAccentState] = useState<AccentKey>('lime');
 
   useEffect(() => {
     (async () => {
       const stored = await storage.getItem<Mode>(THEME_KEY, 'system' as Mode);
       if (stored === 'light' || stored === 'dark' || stored === 'system') setModeState(stored);
+      const a = await storage.getItem<AccentKey>(ACCENT_KEY, 'lime' as AccentKey);
+      if (a && ACCENT_KEYS.includes(a)) setAccentState(a);
     })();
   }, []);
 
@@ -154,15 +189,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setModeState(m);
     storage.setItem(THEME_KEY, m);
   }, []);
+  const setAccent = useCallback((a: AccentKey) => {
+    setAccentState(a);
+    storage.setItem(ACCENT_KEY, a);
+  }, []);
 
   const activeIsDark = mode === 'system' ? system === 'dark' : mode === 'dark';
-  const colors = activeIsDark ? dark : light;
+  const base = activeIsDark ? dark : light;
+  const colors = useMemo(() => applyAccent(base, accent), [base, accent]) as ThemeColors;
 
   const toggle = useCallback(() => {
     setMode(activeIsDark ? 'light' : 'dark');
   }, [activeIsDark, setMode]);
 
-  const value = useMemo<Ctx>(() => ({ colors, mode, setMode, toggle }), [colors, mode, setMode, toggle]);
+  const value = useMemo<Ctx>(() => ({ colors, mode, setMode, toggle, accent, setAccent }), [colors, mode, setMode, toggle, accent, setAccent]);
   return <ThemeCtx.Provider value={value}>{children}</ThemeCtx.Provider>;
 }
 

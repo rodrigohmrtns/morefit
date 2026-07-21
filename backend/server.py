@@ -1765,6 +1765,59 @@ async def coach_analyze(user: dict = Depends(require_premium)):
     return {"analysis": data}
 
 
+# ==================== Item 13: Receitas IA (Premium) ====================
+class RecipeIn(BaseModel):
+    goal: Optional[Literal["lose", "maintain", "gain", "improve_health"]] = None
+    meal_type: Literal["breakfast", "lunch", "dinner", "snack"] = "lunch"
+    dietary_restrictions: Optional[list[str]] = None  # e.g. ["vegetarian", "gluten-free"]
+    max_calories: Optional[int] = None
+
+
+@api.post("/coach/recipes")
+async def coach_recipes(payload: RecipeIn, user: dict = Depends(require_premium)):
+    """Generate 3 personalized recipes matching user's goal and macros."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "EMERGENT_LLM_KEY não configurada")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(500, f"IA indisponível: {e}")
+
+    goal = payload.goal or user.get("goal") or "improve_health"
+    kcal_goal = user.get("daily_calorie_goal") or 2000
+    restrictions = ", ".join(payload.dietary_restrictions or []) or "nenhuma"
+    max_kcal = payload.max_calories or (kcal_goal // 3)
+
+    meal_label = {"breakfast": "café da manhã", "lunch": "almoço", "dinner": "jantar", "snack": "lanche"}[payload.meal_type]
+
+    system = (
+        "Você é um nutricionista brasileiro. Gere 3 receitas para {meal} respeitando: objetivo={goal}, "
+        "restrições=({rest}), max {max_kcal}kcal por porção. RETORNE APENAS JSON no formato: "
+        "{{\"recipes\":[{{\"name\":\"string\",\"emoji\":\"🍽️\",\"time_min\":15,\"servings\":1,"
+        "\"ingredients\":[\"item + quantidade\"],\"instructions\":[\"passo\"],"
+        "\"macros\":{{\"calories\":300,\"protein_g\":20,\"carbs_g\":30,\"fat_g\":10}},"
+        "\"tags\":[\"tag\"]}}]}}. Use ingredientes brasileiros. Nunca inclua texto fora do JSON."
+    ).format(meal=meal_label, goal=goal, rest=restrictions, max_kcal=max_kcal)
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"recipes_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+        system_message=system,
+    ).with_model("gemini", "gemini-2.5-flash")
+
+    try:
+        resp = await chat.send_message(UserMessage(
+            text=f"Gere 3 receitas para {meal_label} adequadas ao meu objetivo."
+        ))
+    except Exception as e:
+        raise HTTPException(502, f"Falha ao gerar receitas: {e}")
+
+    data = _extract_json(resp or "")
+    if not data or not data.get("recipes"):
+        raise HTTPException(422, "Não foi possível gerar receitas")
+    return data
+
+
 
 
 # ==================== Módulo 21: Empresas (Corporate Plan) ====================

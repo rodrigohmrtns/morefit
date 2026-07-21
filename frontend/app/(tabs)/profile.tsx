@@ -6,7 +6,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/src/contexts/AuthContext';
-import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
+import { LOCALE_LABELS, useLocale, type Locale } from '@/src/i18n';
+import { ACCENT_KEYS, ACCENT_PALETTE, radius, spacing, ThemeColors, typography, useTheme, type AccentKey } from '@/src/theme';
+import { haptic } from '@/src/utils/haptic';
 
 const GOAL_LABEL: Record<string, string> = {
   lose: 'Perder peso', maintain: 'Manter peso', gain: 'Ganhar massa', improve_health: 'Melhorar saúde',
@@ -15,7 +17,8 @@ const GOAL_LABEL: Record<string, string> = {
 export default function Profile() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { colors, mode, setMode } = useTheme();
+  const { colors, mode, setMode, accent, setAccent } = useTheme();
+  const { locale, setLocale, t } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const rows: { icon: any; label: string; value?: string }[] = [
@@ -58,13 +61,13 @@ export default function Profile() {
           </View>
         </View>
 
-        <Text style={s.sectionLabel}>Aparência</Text>
+        <Text style={s.sectionLabel}>{t('themes.title')}</Text>
         <View style={s.card}>
           <View style={s.themeRow}>
             {(['light', 'dark', 'system'] as const).map(m => (
               <Pressable
                 key={m}
-                onPress={() => setMode(m)}
+                onPress={() => { haptic.select(); setMode(m); }}
                 style={[s.themeChip, mode === m && s.themeChipActive]}
                 testID={`profile-theme-${m}`}
               >
@@ -74,10 +77,55 @@ export default function Profile() {
                   color={mode === m ? colors.onBrandPrimary : colors.onSurface}
                 />
                 <Text style={[s.themeChipTxt, mode === m && { color: colors.onBrandPrimary, fontWeight: '700' }]}>
-                  {m === 'light' ? 'Claro' : m === 'dark' ? 'Escuro' : 'Sistema'}
+                  {m === 'light' ? t('themes.lightMode') : m === 'dark' ? t('themes.darkMode') : t('themes.system')}
                 </Text>
               </Pressable>
             ))}
+          </View>
+
+          {/* Accent color picker */}
+          <View style={[s.rowBorder, { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm }]}>
+            <Text style={s.subLabel}>{t('themes.accentColor')}</Text>
+            <View style={s.accentRow}>
+              {ACCENT_KEYS.map(key => {
+                const a = ACCENT_PALETTE[key];
+                const active = accent === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => { haptic.select(); setAccent(key as AccentKey); }}
+                    style={[s.accentDot, { backgroundColor: a.primary }, active && s.accentDotActive]}
+                    testID={`profile-accent-${key}`}
+                  >
+                    {active && <Ionicons name="checkmark" size={18} color={a.onPrimary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Language picker */}
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }}>
+            <Text style={s.subLabel}>{t('themes.language')}</Text>
+            <View style={s.langRow}>
+              {(Object.keys(LOCALE_LABELS) as Locale[]).map(l => {
+                const meta = LOCALE_LABELS[l];
+                const active = locale === l;
+                return (
+                  <Pressable
+                    key={l}
+                    onPress={() => { haptic.select(); setLocale(l); }}
+                    style={[s.langChip, active && s.langChipActive]}
+                    testID={`profile-lang-${l}`}
+                  >
+                    <Text style={{ fontSize: 16 }}>{meta.flag}</Text>
+                    <Text style={[s.langChipTxt, active && { color: colors.onBrandPrimary, fontWeight: '700' }]}>
+                      {meta.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
 
@@ -195,6 +243,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   themeChip: { flex: 1, flexDirection: 'row', gap: spacing.xs, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm + 2, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
   themeChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   themeChipTxt: { ...typography.caption, color: colors.onSurface },
+  subLabel: { ...typography.small, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: spacing.sm },
+  accentRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  accentDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  accentDotActive: { borderColor: colors.onSurface },
+  langRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  langChip: { flexDirection: 'row', gap: 4, alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
+  langChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  langChipTxt: { ...typography.caption, color: colors.onSurface },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md },
   linkTxt: { ...typography.body, color: colors.brandDark, fontWeight: '700' },
   premiumCta: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.tintButter, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },

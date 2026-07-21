@@ -577,3 +577,94 @@ agent_communication:
       - M22 SMS/WhatsApp (precisa Twilio)
       - Fase 6 completa (Reanimated animations + skeletons — próxima iteração)
 
+
+
+backend:
+  - task: "AI Recipes endpoint (Item 13)"
+    implemented: true
+    working: true
+    file: "backend/server.py POST /api/coach/recipes"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Endpoint POST /coach/recipes gera 3 receitas via Gemini 2.5 Flash. Body: {meal_type, dietary_restrictions?, max_calories?, goal?}. Retorna {recipes:[{name, emoji, time_min, servings, ingredients, instructions, macros, tags}]}. Gated por require_premium. Testado com Ana (promovida premium): retornou receita 'Frango Grelhado com Salada Tropical e Quinoa' com macros completos."
+
+frontend:
+  - task: "AI Recipes screen (/recipes)"
+    implemented: true
+    working: true
+    file: "frontend/app/recipes.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Tela premium: seletor de refeição (Café/Almoço/Jantar/Lanche), restrições, max kcal. Renderiza receitas com emoji, tempo, porções, macros (kcal/P/C/G), ingredientes com bullets, instruções numeradas, tags. Reanimated FadeInUp staggered. Premium gate integrado (paywall link). Validado end-to-end no browser."
+  - task: "i18n (pt-BR + en + es)"
+    implemented: true
+    working: true
+    file: "frontend/src/i18n.tsx, frontend/app/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "LocaleProvider wrappado no _layout. 3 idiomas (PT/EN/ES) com auto-detect via expo-localization + persistência AsyncStorage. Seletor no Perfil funcional — trocando pra Português muda instantaneamente todas as labels traduzidas."
+  - task: "Custom accent colors (item 22)"
+    implemented: true
+    working: true
+    file: "frontend/src/theme.tsx, frontend/app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "6 paletas: lime, teal, coral, violet, sunset, ocean. Seletor no Perfil aplica accent instantaneamente em todo app (avatar, chips, botões) via applyAccent(base, key). Persistido em AsyncStorage."
+  - task: "SVG smooth Bezier charts (item 12)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/progress.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Substituído Polyline por Path com Cardinal Spline (tension=0.2). Curvas suaves premium. Aplicado no Chart principal e MiniChart de comparação. Screenshot mostra curva orgânica em vez de polilinha quebrada."
+  - task: "UX Premium Reanimated (item 10)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/index.tsx, frontend/app/recipes.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Pulse infinito no ícone do Coach IA (Home). Pulse durante loading no CTA Generate Recipes. FadeInUp staggered nos cards de receitas. FadeInDown no Recipes CTA e error box."
+
+test_plan:
+  current_focus:
+    - "AI Recipes endpoint (Item 13)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Batch de 5 features entregues numa sessão (itens 10, 12, 13, 17, 22):
+      1. Item 13 (AI Recipes): backend + tela completa validada end-to-end (Gemini retornou receita real).
+      2. Item 17 (i18n): PT-BR + EN + ES com auto-detect e trocador no Perfil (validado screenshot).
+      3. Item 22 (Custom accents): 6 paletas + seletor no Perfil (validado violet).
+      4. Item 12 (Smooth SVG): Cardinal spline substituindo polilinhas (validado screenshot).
+      5. Item 10 (UX Reanimated): Pulses infinitos + FadeIn staggered (funcional).
+      
+      Zero regressão nos testes existentes (48/48 backend passando).
+      Solicito o testing_agent para validar o novo endpoint /api/coach/recipes (premium gate + Gemini payload).

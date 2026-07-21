@@ -1,9 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing,
+  FadeInDown,
+} from 'react-native-reanimated';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -71,6 +75,17 @@ export default function Home() {
   const addWater = async (amt: number) => {
     try { await api('/water', { method: 'POST', body: { amount_ml: amt } }); await load(); } catch {}
   };
+
+  // Subtle pulse for premium AI buttons (item 10 — UX premium)
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1.03, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   return (
     <View style={s.root} testID="home-screen">
@@ -226,13 +241,27 @@ export default function Home() {
             </View>
           </Pressable>
           <Pressable style={s.aiCta2} onPress={() => { haptic.tap(); router.push(user?.is_premium ? '/coach' : '/paywall'); }} testID="home-ai-coach-cta">
-            <View style={s.aiIcon2}><Ionicons name={user?.is_premium ? 'chatbubbles' : 'lock-closed'} size={22} color={colors.brandPrimary} /></View>
+            <Animated.View style={[s.aiIcon2, pulseStyle]}>
+              <Ionicons name={user?.is_premium ? 'chatbubbles' : 'lock-closed'} size={22} color={colors.brandPrimary} />
+            </Animated.View>
             <View style={{ flex: 1 }}>
               <Text style={s.aiTitle2}>Coach IA {!user?.is_premium && '🔒'}</Text>
               <Text style={s.aiSub2}>Pergunte ao seu nutri</Text>
             </View>
           </Pressable>
         </View>
+
+        {/* Recipes CTA */}
+        <Animated.View entering={FadeInDown.delay(120).springify().damping(14)}>
+          <Pressable style={s.recipesCta} onPress={() => { haptic.tap(); router.push('/recipes'); }} testID="home-recipes-cta">
+            <View style={s.recipesIcon}><Text style={{ fontSize: 22 }}>🍽️</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.recipesTitle}>Receitas IA {!user?.is_premium && '🔒'}</Text>
+              <Text style={s.recipesSub}>3 receitas para seu objetivo em segundos</Text>
+            </View>
+            <Ionicons name="sparkles" size={18} color={colors.brandDark} />
+          </Pressable>
+        </Animated.View>
 
         {/* Gamification + Community + Share */}
         <View style={s.ctaRow}>
@@ -416,6 +445,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   aiIcon2: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(198,241,75,0.15)', alignItems: 'center', justifyContent: 'center' },
   aiTitle2: { color: colors.onSurfaceInverse, fontWeight: '700', fontSize: 14 },
   aiSub2: { color: colors.onSurfaceInverse, opacity: 0.7, fontSize: 11, marginTop: 1 },
+
+  recipesCta: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', backgroundColor: colors.tintPeach, padding: spacing.md, borderRadius: radius.lg },
+  recipesIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },
+  recipesTitle: { color: colors.onTint, fontWeight: '700', fontSize: 14 },
+  recipesSub: { color: colors.onTint, opacity: 0.7, fontSize: 12, marginTop: 1 },
 
   gamiCta: { flex: 1, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.tintButter, padding: spacing.md, borderRadius: radius.lg },
   gamiIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },

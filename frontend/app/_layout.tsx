@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { LocaleProvider } from '@/src/i18n';
 import { ThemeProvider, useTheme } from '@/src/theme';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 
@@ -38,9 +39,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <ThemedStack />
-          </AuthProvider>
+          <LocaleProvider>
+            <AuthProvider>
+              <ThemedStack />
+            </AuthProvider>
+          </LocaleProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

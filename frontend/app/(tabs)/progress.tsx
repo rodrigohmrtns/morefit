@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path, Polyline } from 'react-native-svg';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { api } from '@/src/api/client';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
@@ -260,8 +260,10 @@ function Chart({ colors, series, predicted }: { colors: ThemeColors; series: { d
     x: P + xStep * i,
     y: P + (H - P * 2) * (1 - (p.value - min) / range),
   }));
-  const line = pts.map(p => `${p.x},${p.y}`).join(' ');
-  const areaPath = `M ${P},${H - P} L ${line.split(' ').join(' L ')} L ${W - P},${H - P} Z`;
+
+  // Smooth Catmull-Rom → Bezier curve (item 12 — SVG charts premium).
+  const smoothPath = buildSmoothPath(pts);
+  const areaPath = `${smoothPath} L ${W - P},${H - P} L ${P},${H - P} Z`;
 
   // Predicted marker at right
   const predY = predicted != null ? P + (H - P * 2) * (1 - (predicted - min) / range) : null;
@@ -274,7 +276,7 @@ function Chart({ colors, series, predicted }: { colors: ThemeColors; series: { d
           stroke={colors.divider} strokeWidth={1} strokeDasharray="2,4" />
       ))}
       <Path d={areaPath} fill={colors.brandPrimary} opacity={0.18} />
-      <Polyline points={line} fill="none" stroke={colors.brandPrimary} strokeWidth={2.5} strokeLinejoin="round" />
+      <Path d={smoothPath} fill="none" stroke={colors.brandPrimary} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       {pts.map((p, i) => (
         <Circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 5 : 2.5} fill={colors.brandPrimary} />
       ))}
@@ -289,16 +291,39 @@ function Chart({ colors, series, predicted }: { colors: ThemeColors; series: { d
   );
 }
 
+/** Cardinal spline path (tension ~0.5) — smooth Bezier through the given points. */
+function buildSmoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M ${pts[0].x},${pts[0].y}`;
+  if (pts.length === 2) return `M ${pts[0].x},${pts[0].y} L ${pts[1].x},${pts[1].y}`;
+
+  const t = 0.2; // tension — 0.2 gives a subtle, "premium" curve
+  let d = `M ${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) * t;
+    const c1y = p1.y + (p2.y - p0.y) * t;
+    const c2x = p2.x - (p3.x - p1.x) * t;
+    const c2y = p2.y - (p3.y - p1.y) * t;
+    d += ` C ${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
 function MiniChart({ colors, series }: { colors: ThemeColors; series: { date: string; value: number }[] }) {
   const W = 100, H = 32;
   const values = series.map(p => p.value);
   const min = Math.min(...values), max = Math.max(...values);
   const range = Math.max(0.1, max - min);
   const xStep = W / Math.max(1, series.length - 1);
-  const line = series.map((p, i) => `${i * xStep},${H - (H * (p.value - min)) / range - 2}`).join(' ');
+  const pts = series.map((p, i) => ({ x: i * xStep, y: H - (H * (p.value - min)) / range - 2 }));
+  const d = buildSmoothPath(pts);
   return (
     <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-      <Polyline points={line} fill="none" stroke={colors.brandPrimary} strokeWidth={1.5} strokeLinejoin="round" />
+      <Path d={d} fill="none" stroke={colors.brandPrimary} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
     </Svg>
   );
 }

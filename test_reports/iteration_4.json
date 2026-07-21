@@ -1,0 +1,46 @@
+{
+  "summary": "Backend-only testing for VitaTracker Item 13 (POST /api/coach/recipes) plus regression of the 48 pre-existing tests. Added new /app/backend/tests/test_recipes.py with 5 focused tests (gating + happy paths). Final result: 53/53 pytest cases pass (5/5 new + 48/48 regression). The new endpoint correctly gates on require_premium (returns 402 with 'Recurso Premium' message, not 403 — see note), rejects unauth (401), validates meal_type via Pydantic Literal (422), and produces valid 3-recipe JSON via Gemini 2.5 Flash respecting body defaults, dietary_restrictions and max_calories. Discovered and worked around a pre-existing test hygiene bug in test_modules_16_20.py that $unsets Ana's premium fields on teardown; my fixture self-heals by re-granting premium via DB when detected. One flaky LLM response observed (JSON parse fallthrough to HTTP 422 'Não foi possível gerar receitas') — passed on retry; recommend making _extract_json more robust and/or adding a single retry inside coach_recipes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/coach/recipes",
+        "issue": "Occasional 422 'Não foi possível gerar receitas' when Gemini returns non-JSON or JSON with prose prefix. Observed once across ~6 runs. No retry logic. Consider one-shot retry or stricter response_format prompt."
+      },
+      {
+        "endpoint": "POST /api/coach/recipes (spec vs impl)",
+        "issue": "Task spec asked for '403 or similar' on non-premium; implementation returns HTTP 402 (via require_premium dependency in server.py:315-319). 402 is arguably more semantically correct (Payment Required). Test accepts both 402/403 — no code change needed, but frontend must handle 402."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_recipes.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add a single retry (or stricter JSON prompt / response_format) inside coach_recipes() in server.py:1776+ to eliminate the rare 422 flake when Gemini returns non-strict JSON.",
+    "Fix pre-existing test hygiene bug in /app/backend/tests/test_modules_16_20.py::premium_auth teardown: it unconditionally $unsets premium fields on Ana, wiping any pre-existing premium state. Should snapshot Ana's premium fields before $set and restore them on teardown (or use a dedicated test user instead of Ana).",
+    "Optional: consider returning HTTP 403 instead of 402 for require_premium if the frontend/mobile HTTP layer treats 402 specially (some clients/proxies), or document 402 clearly."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 2619 lines — well beyond the 700-line guideline. Split into modules (auth, coach/ai, gamification, community, admin, professionals, corporate).",
+    "coach_recipes() has no retry on LLM parse failure — makes the endpoint intermittently 422 for end users. Same pattern likely exists in coach_analyze and meal analyze.",
+    "premium gate uses HTTP 402; make sure the mobile client explicitly handles it (not treated as generic 4xx). Add an OpenAPI 'responses' block on /coach/recipes documenting 401/402/422/502.",
+    "The prompt in coach_recipes forces JSON but includes emoji literal (🍽️) — safe, but consider requesting 'response in strict JSON, no prose, no markdown fences' explicitly to reduce parse flakes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_recipes.py (new — 5 tests for POST /api/coach/recipes)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "n/a (frontend not requested)"},
+  "seed_data_creation": "Created ephemeral non-premium test user (nonprem_recipe_<uuid>@example.com) for the 402 gating test — left in DB (harmless, matches pattern used by other test files). Ana's premium flag re-granted by fixture if teardown from other tests wiped it (idempotent).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 53 backend tests pass (48 pre-existing + 5 new recipe tests). New endpoint /api/coach/recipes returns 200 with {recipes:[…]} for premium users, 402 for non-premium, 401 unauth, 422 for invalid meal_type. Watch for occasional 422 'Não foi possível gerar receitas' — this is Gemini returning non-strict JSON; a single retry in the endpoint would eliminate it. When running the full suite, note that test_modules_16_20.py teardown wipes Ana's premium — my test_recipes.py fixture self-heals but the underlying bug remains.",
+  "rca_of_issue": "N/A — no critical failures. Minor pre-existing test-hygiene bug in test_modules_16_20.py::premium_auth teardown (unconditional $unset of premium fields on Ana) surfaced when running the full suite ordered alphabetically; test_recipes.py fixture now self-heals via DB update before login."
+}
