@@ -344,3 +344,37 @@ Tela `/notifications-settings.tsx`:
 - **48/48 pytest passando**: 13 backend base + 9 M16-20 + 9 LGPD + 9 Admin + 8 outros.
 - Zero regressão desde v1.0.
 
+
+## v1.7 – Batch Premium (Itens 10, 12, 13, 17, 22)
+
+### Item 13 – Receitas IA (Premium)
+- Endpoint `POST /api/coach/recipes` (server.py) gated por `require_premium`.
+- Body: `{meal_type: 'breakfast'|'lunch'|'dinner'|'snack', dietary_restrictions?, max_calories?, goal?}`.
+- Gera 3 receitas via Gemini 2.5 Flash com JSON estrito e retry automático se resposta não for JSON válido.
+- Tela `frontend/app/recipes.tsx`: seletor de refeição com emoji + restrições + max kcal + cards animados (Reanimated FadeInUp staggered) exibindo emoji, tempo, porções, macros grid (kcal/P/C/G), ingredientes com bullets, instruções numeradas e tags.
+- CTA na Home ("Receitas IA") com peach tint.
+- Gate Premium com fallback pra paywall.
+
+### Item 17 – i18n (pt-BR + en + es)
+- `frontend/src/i18n.tsx` com dicionários completos, `LocaleProvider` no `_layout.tsx`, auto-detect via `expo-localization`, persistência em AsyncStorage.
+- Seletor no Perfil com bandeiras 🇧🇷 🇺🇸 🇪🇸 — troca instantânea.
+
+### Item 22 – Temas Customizáveis
+- 6 paletas de accent color (lime, teal, coral, violet, sunset, ocean) em `frontend/src/theme.tsx`.
+- Seletor no Perfil aplica o accent em todo o app (avatar, chips, botões, gráficos) sem reload.
+- Persistido em AsyncStorage.
+
+### Item 12 – SVG Charts Suaves
+- `progress.tsx`: Cardinal spline (tension=0.2) via helper `buildSmoothPath()` — curvas Bezier orgânicas em vez de polilinhas quebradas.
+- Aplicado no Chart principal e MiniChart de comparação.
+
+### Item 10 – UX Premium Reanimated
+- Pulse infinito no ícone Coach IA da Home (scale 1↔1.03).
+- Pulse no CTA "Gerar receitas" durante loading.
+- FadeInDown no card CTA de Receitas na Home.
+- FadeInUp staggered nos cards de receita.
+- FadeInDown no error box do gerador de receitas.
+
+### Testes
+- **53/53 pytest passando** (48 existentes + 5 novos em test_recipes.py cobrindo auth/premium gate/schema/restrictions).
+- Validação end-to-end no browser: Ana promovida a premium gerou receita real ("Frango Grelhado com Salada Tropical e Quinoa" com 540kcal).

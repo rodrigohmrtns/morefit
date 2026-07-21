@@ -1814,7 +1814,16 @@ async def coach_recipes(payload: RecipeIn, user: dict = Depends(require_premium)
 
     data = _extract_json(resp or "")
     if not data or not data.get("recipes"):
-        raise HTTPException(422, "Não foi possível gerar receitas")
+        # Retry once with a stricter instruction if the LLM returned invalid JSON.
+        try:
+            resp2 = await chat.send_message(UserMessage(
+                text="Retorne APENAS um JSON válido conforme o schema, sem markdown, sem texto fora do JSON."
+            ))
+            data = _extract_json(resp2 or "")
+        except Exception:
+            data = None
+        if not data or not data.get("recipes"):
+            raise HTTPException(422, "Não foi possível gerar receitas")
     return data
 
 
