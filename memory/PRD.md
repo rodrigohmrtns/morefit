@@ -175,3 +175,22 @@ Endpoints: `POST /api/professionals/share`, `GET /api/professionals/shares`, `DE
 
 Testes: 17/17 passando em `/app/backend/tests/test_modules_16_20.py`
 
+
+## Módulo 21 – Empresas / Plano Corporativo (v1.3)
+
+Hub `/companies` para criar/entrar em empresas, listagem "Minhas empresas" com role (Admin/Member) e código de convite (formato `V-XXXXX`).
+
+Screen `/company/[id]` com 4 abas:
+- **Painel** (só admin): 6 métricas agregadas anônimas dos últimos 7 dias — Membros, Ativos hoje, Água, Passos, Exercício, Sono. Botão "Baixar relatório PDF" corporativo.
+- **Campanhas**: lista campanhas ativas, botão "Nova campanha" (admin), join/leave por usuário.
+- **Ranking**: leaderboard interno da empresa (reusa XP do M16).
+- **Membros** (só admin): lista com foto/nome/email + botão remover.
+
+Screen `/campaign/[id]`: hero com métrica, card de progresso pessoal com barra + %, botão participar/sair, ranking com mini-barras.
+
+**Métricas de campanha suportadas**: water_ml, steps, sleep_hours, weight_loss_kg, exercise_min, meals_count. Progresso computado automaticamente a partir dos logs do usuário no intervalo start_date..end_date.
+
+**Endpoints principais**: POST/GET `/api/companies`, `/api/companies/mine`, POST `/api/companies/join` (código), CRUD `/api/companies/{id}`, GET `/api/companies/{id}/dashboard`, `/leaderboard`, `/members`, `/report/pdf`, CRUD `/api/companies/{id}/campaigns`, GET `/api/campaigns/{id}`, `/ranking`, POST `/api/campaigns/{id}/join|leave`.
+
+Testes: fluxo end-to-end verificado (create → dashboard → campaign → ranking → PDF). Sem regressão em M16-20 (17/17 passando).
+

@@ -229,3 +229,88 @@ agent_communication:
         - Community: create post → list → toggle like (twice, idempotent per user) → add comment → list comments → delete post
         - GET /api/report/pdf and /api/report/pdf?type=nutritionist return application/pdf bytes
         - Frontend flows: from Home, navigate to Gamification (toggle tabs), Comunidade (create/like/comment post), Compartilhar (create link + copy)
+
+# ==================== Módulo 21: Empresas (v1.3) ====================
+
+backend:
+  - task: "Companies CRUD + membership + invite code"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Endpoints: POST/GET /api/companies, /api/companies/mine, /api/companies/join (by code), GET/PATCH/DELETE /api/companies/{id}, POST /api/companies/{id}/leave, GET/DELETE /api/companies/{id}/members. Codes format 'V-XXXXX'. Verified via curl: create → list → dashboard → PDF."
+  - task: "Corporate dashboard aggregated (anonymized)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "GET /api/companies/{id}/dashboard returns member_count, active_today, engagement_pct, totals (water/steps/exercise/meals) + averages. GET /api/companies/{id}/leaderboard reuses gamification XP. GET /api/companies/{id}/report/pdf builds corporate PDF (admin only)."
+  - task: "Company campaigns/challenges"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "POST/GET /api/companies/{id}/campaigns, POST /api/campaigns/{id}/join|leave, GET /api/campaigns/{id}, GET /api/campaigns/{id}/ranking. Metrics: water_ml, steps, sleep_hours, weight_loss_kg, exercise_min, meals_count. Auto-computes progress from user logs within date range."
+
+frontend:
+  - task: "Companies hub screen"
+    implemented: true
+    working: true
+    file: "frontend/app/companies.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Hub with create/join buttons + list of my companies with role badge + invite code. Modal for create (name + industry + plan chips) and join (code input). Manually verified via screenshot."
+  - task: "Company detail screen (4 tabs)"
+    implemented: true
+    working: true
+    file: "frontend/app/company/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Dynamic route /company/[id] with tabs Painel (admin only stats), Campanhas, Ranking, Membros (admin). Corporate PDF download, member remove, leave/delete company actions. All 4 tabs render correctly per screenshot."
+  - task: "Campaign detail screen"
+    implemented: true
+    working: true
+    file: "frontend/app/campaign/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Hero card with metric icon, my progress card with pct + bar, join/leave button, ranking with mini progress bars per user."
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Módulo 21 (Empresas) entregue completo (Fase A). Backend + frontend testados manualmente via curl e screenshots.
+      - Criei empresa "Acme Tech" (plano Business), código V-6GAK1
+      - Dashboard corporativo com métricas agregadas anônimas (7d)
+      - Campanha "30 dias de hidratação" criada e usuário participando
+      - Ranking interno funcionando
+      - PDF corporativo gerando 1.5KB
+      - 17/17 testes de M16-20 continuam passando (sem regressão)
+      Próxima fase (aguardando confirmação do user): M22 Notificações (Push + Email + Lembretes).
+

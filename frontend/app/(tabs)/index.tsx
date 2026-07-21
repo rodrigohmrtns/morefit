@@ -260,6 +260,17 @@ export default function Home() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
+        <Pressable style={s.shareCta} onPress={() => router.push('/companies')} testID="home-companies-cta">
+          <View style={[s.shareIconWrap, { backgroundColor: colors.brandDark }]}>
+            <Ionicons name="business" size={20} color={colors.brandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.shareTitle}>Empresas & Equipes</Text>
+            <Text style={s.shareSub}>Plano corporativo, campanhas e desafios coletivos</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
         {/* Photos strip */}
         <View style={s.section}>
           <View style={s.sectionHead}>
