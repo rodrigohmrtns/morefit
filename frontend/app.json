@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "VitaTracker",
-    "slug": "frontend",
+    "slug": "vitatracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "vitatracker",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {

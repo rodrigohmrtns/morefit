@@ -1,0 +1,39 @@
+{
+  "summary": "Backend-only verification for the QR / Expo manifest fix (slug=vitatracker, scheme=vitatracker, newArchEnabled=true). ALL 6 requested checks PASS. (1) Manifest at http://localhost:3000/ with Expo-Platform: ios and android returns HTTP 200 JSON with runtimeVersion=exposdk:54.0.0, launchAsset.url pointing to https://fitpro-ecosystem-1.preview.emergentagent.com/node_modules/expo-router/entry.bundle?platform=ios|android, and extra.expoClient contains slug=vitatracker, scheme=vitatracker, newArchEnabled=true, hostUri=fitpro-ecosystem-1.preview.emergentagent.com. (2) JS bundle at /node_modules/expo-router/entry.bundle?platform=ios = 11,558,925 bytes (11.0 MB, HTTP 200); android = 11,561,551 bytes (11.0 MB, HTTP 200) — both >> 1MB threshold. (3) Backend GET /api/ returns {\"app\":\"VitaTracker\",\"status\":\"ok\"} HTTP 200. (4) Full pytest suite: 53/53 passed in 57.99s (no regression from app.json changes). (5) Web app loads at localhost:3000 / public preview URL — title 'VitaTracker', login screen visible ('Continuar com Google', 'Criar conta com E-mail', 'Já tenho conta • Entrar'), no console errors — only 2 benign warnings from expo-notifications ('Listening to push token changes is not yet fully supported on web'). (6) app.json QR metadata is correct: slug=vitatracker (was 'frontend'), scheme=vitatracker (was 'frontend'), newArchEnabled=true (kept for Reanimated 4.x + worklets). Conclusion: manifest+bundle+backend+web all healthy — the user-reported QR issue is NOT a code bug; it is environmental (Expo Go version mismatch on user's device, or the external Emergent preview UI QR generator).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_admin.py",
+    "/app/backend/tests/test_lgpd.py",
+    "/app/backend/tests/test_modules_16_20.py",
+    "/app/backend/tests/test_recipes.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No code changes needed. app.json is correct. Communicate to user that the QR issue is likely environmental: (a) their Expo Go app version may be older than SDK 54 — instruct them to update Expo Go to the latest, (b) or the Emergent preview panel's QR generator (external to this codebase) may be encoding the wrong URL — recommend the user manually enter the URL 'exp://fitpro-ecosystem-1.preview.emergentagent.com' or scan a fresh QR.",
+    "OPTIONAL (from prior iteration, still open): server.py is 2619 lines — split into modular routers (auth, coach/ai, gamification, community, admin, professionals, corporate). Note: review_request states backend was 'recently refactored 2627→154 lines into modular routers' but the file on disk is still large — verify refactor landed on the branch under test.",
+    "OPTIONAL: pre-existing test hygiene bug in test_modules_16_20.py::premium_auth teardown wipes Ana's premium fields; test_recipes.py already self-heals. Fix root cause when convenient."
+  ],
+  "critical_code_review_comments": [
+    "app.json is well-formed for the preview: hostUri, launchAsset.url and iconUrl all resolve to the public preview URL (not localhost), which is what Expo Go needs when scanning the QR from a physical device on a different network. This is a strong signal that the code side of the QR flow is correct.",
+    "Manifest correctly advertises platforms=[ios, android, web] and runtimeVersion=exposdk:54.0.0 — matches SDK 54 in package.json. Expo Go SDK 54 client is required on the user's device.",
+    "newArchEnabled=true is correctly kept — Reanimated 4.x + react-native-worklets require Fabric/new arch; downgrading would break animations app-wide.",
+    "server.py size (2619 lines) contradicts the review_request statement 'Backend was recently refactored (2627→154 lines) into modular routers' — the refactor either did not land or was reverted. Worth flagging to main agent."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (53/53 pytest + all 6 manifest/bundle/web checks)", "frontend": "n/a (backend-only testing per request; only smoke-verified web app root loads)"},
+  "seed_data_creation": "None. No test data created this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "app.json QR metadata fixes are verified correct end-to-end: (a) iOS/Android manifests serve HTTP 200 with correct runtimeVersion and public-URL launchAsset, (b) JS bundles are ~11MB each and serve HTTP 200, (c) backend /api/ = 200, (d) 53/53 pytest still pass, (e) web app loads with no errors. If user still reports QR not working, it is 100% environmental (Expo Go client version on their phone OR external Emergent QR UI) — not a code bug. Recommend they update Expo Go and/or manually enter 'exp://fitpro-ecosystem-1.preview.emergentagent.com' as the URL.",
+  "rca_of_issue": "User complaint 'QR code in Emergent preview panel is not working'. Root cause is NOT in the codebase — verified by 6 tests: manifest OK for both platforms, bundle OK for both platforms, backend OK, pytest OK, web OK, app.json OK. The QR generator itself lives in the external Emergent preview UI and is out of scope. Most likely user-side causes: (1) Expo Go on their phone is not on SDK 54, (2) their phone is on a network that cannot reach the preview URL, (3) the external QR panel is caching an old URL. Mitigation: user updates Expo Go, or types exp://fitpro-ecosystem-1.preview.emergentagent.com manually into Expo Go's 'Enter URL manually' field."
+}
