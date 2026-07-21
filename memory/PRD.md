@@ -136,3 +136,42 @@ Endpoint: `POST /api/photos/compare` `{ photo_id_before, photo_id_after }`
 - Recuperação de senha via SendGrid/Resend
 - Streaks / gamificação
 - **Monetização Premium**: paywall com scan-IA ilimitado + Coach IA + relatório semanal
+
+## Módulos 16-20 – Gamificação, Comunidade & Compartilhamento Profissional (v1.2)
+
+### Módulo 16 – Gamificação
+Screen `/gamification` com:
+- Hero: Nível + XP total (grande) + barra de progresso para próximo nível + chip de streak (dias consecutivos com log)
+- Card "Desafios de hoje": 3 desafios diários (água/refeições/exercício) com recompensa em XP
+- Tabs "Conquistas" / "Ranking"
+- **Conquistas**: 12 badges com ícone, nome, descrição e XP (bloqueado/desbloqueado)
+- **Ranking**: Top 20 usuários globais com medalhas 🥇🥈🥉, nível, streak e XP. Destaca o usuário logado.
+
+Endpoints: `GET /api/gamification`, `GET /api/gamification/leaderboard?limit=20`
+
+### Módulo 17 – Comunidade
+Screen `/community` com:
+- Filtros por tipo: Tudo / Atualizações / Receitas / Treinos / Fotos
+- Feed vertical de posts (avatar, nome, badge do tipo, tempo relativo, texto, ações)
+- Modal composer para criar post com chips de tipo
+- Curtidas com heart optimistic + toggle
+- Modal de comentários deslizante com input bar
+
+Endpoints: `POST/GET /api/community/posts`, `POST /api/community/posts/{id}/like`, `POST/GET /api/community/posts/{id}/comments`, `DELETE /api/community/posts/{id}`
+
+### Módulos 18-20 – Compartilhamento Profissional
+Screen `/professional-share` com:
+- **Baixar PDF**: 4 cards (Completo / Nutricionista / Personal Trainer / Médico) — cada perfil filtra as seções relevantes
+- **Links ativos**: lista dos compartilhamentos com botões copiar / abrir / revogar
+- Modal para criar novo link com escolha do tipo profissional + nome/email opcional
+
+Escopo dos relatórios:
+- **Nutricionista**: peso + medidas + refeições
+- **Personal Trainer**: peso + medidas + exercícios
+- **Médico**: relatório completo (tudo + sono)
+- **Completo (PDF)**: todas as seções
+
+Endpoints: `POST /api/professionals/share`, `GET /api/professionals/shares`, `DELETE /api/professionals/shares/{id}`, `GET /api/report/pdf?type=all|nutritionist|personal|doctor`, `GET /api/reports/public/{token}` (HTML público sem auth, expira em 30 dias)
+
+Testes: 17/17 passando em `/app/backend/tests/test_modules_16_20.py`
+

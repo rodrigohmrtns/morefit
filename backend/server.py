@@ -1344,7 +1344,8 @@ async def create_share(payload: ShareIn, user: dict = Depends(current_user)):
         "expires_at": (now_utc() + timedelta(days=30)).isoformat(),
     }
     await db.shares.insert_one(entry)
-    return {**{k: v for k, v in entry.items() if k != "_id"}, "share_url": f"/report/{token}"}
+    # NOTE: share_url is served via /api/* (K8s ingress only forwards /api paths to backend)
+    return {**{k: v for k, v in entry.items() if k != "_id"}, "share_url": f"/api/reports/public/{token}"}
 
 
 @api.get("/professionals/shares")
@@ -1371,6 +1372,12 @@ async def _build_report_data(uid: str) -> dict:
 
 
 @app.get("/report/{token}", include_in_schema=False)
+async def public_report_legacy(token: str):
+    """Legacy path kept for backward compat — delegates to /api/reports/public/{token}."""
+    return await public_report(token)
+
+
+@api.get("/reports/public/{token}", include_in_schema=False)
 async def public_report(token: str):
     from fastapi.responses import HTMLResponse
     share = await db.shares.find_one({"token": token}, {"_id": 0})

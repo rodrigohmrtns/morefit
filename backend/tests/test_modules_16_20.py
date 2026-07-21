@@ -154,7 +154,7 @@ class TestProfessionalShare:
         for k in ("id", "token", "share_url", "professional_type", "expires_at"):
             assert k in j
         assert j["professional_type"] == "nutritionist"
-        assert j["share_url"].startswith("/report/")
+        assert j["share_url"].startswith("/api/reports/public/"), f"share_url should be under /api/reports/public/, got: {j['share_url']}"
         TestProfessionalShare.share_id = j["id"]
         TestProfessionalShare.share_token = j["token"]
 
@@ -166,24 +166,26 @@ class TestProfessionalShare:
 
     def test_public_report_html_nutritionist(self, api_client, auth):
         tok = TestProfessionalShare.share_token
-        r = requests.get(f"{BASE_URL}/report/{tok}")
-        assert r.status_code == 200
-        html = r.text.lower()
-        assert html.startswith("<!doctype html>")
-        assert "nutricionista" in html
-        # nutritionist should NOT include sleep; personal excludes 'Refeições recentes'; doctor includes 'Sono'
-        # For nutritionist, meals should be visible ('Refeições recentes'), sleep not visible
-        assert "sono" not in html  # <h2>Sono</h2> not for nutritionist
+        r = requests.get(f"{API}/reports/public/{tok}")
+        assert r.status_code == 200, f"status={r.status_code} body[:200]={r.text[:200]}"
+        ctype = r.headers.get("content-type", "")
+        assert "text/html" in ctype, f"content-type should be text/html, got: {ctype}"
+        html_raw = r.text
+        assert html_raw.lower().startswith("<!doctype html>"), f"body should start with <!doctype html>, got: {html_raw[:80]!r}"
+        assert "Refeições recentes" in html_raw, "nutritionist report should contain 'Refeições recentes'"
+        assert "Sono" not in html_raw, "nutritionist report should NOT contain 'Sono'"
+        assert "Exercícios" not in html_raw, "nutritionist report should NOT contain 'Exercícios'"
 
     def test_public_report_personal_no_meals(self, api_client, auth):
         r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
                             json={"professional_type": "personal"})
         assert r.status_code == 200
         tok = r.json()["token"]
-        rr = requests.get(f"{BASE_URL}/report/{tok}")
+        rr = requests.get(f"{API}/reports/public/{tok}")
         assert rr.status_code == 200
         html = rr.text
-        assert "Refeições recentes" not in html
+        assert "Refeições recentes" not in html, "personal report should NOT contain 'Refeições recentes'"
+        assert "Exercícios" in html, "personal report should contain 'Exercícios'"
         # cleanup
         api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
 
@@ -192,9 +194,24 @@ class TestProfessionalShare:
                             json={"professional_type": "doctor"})
         assert r.status_code == 200
         tok = r.json()["token"]
-        rr = requests.get(f"{BASE_URL}/report/{tok}")
+        rr = requests.get(f"{API}/reports/public/{tok}")
         assert rr.status_code == 200
-        assert "Sono" in rr.text
+        ctype = rr.headers.get("content-type", "")
+        assert "text/html" in ctype
+        assert rr.text.lower().startswith("<!doctype html>")
+        assert "Médico" in rr.text, "doctor report should contain 'Médico'"
+        assert "Sono" in rr.text, "doctor report should contain 'Sono'"
+        api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
+
+    def test_legacy_report_route_backward_compat(self, api_client, auth):
+        """Legacy /report/{token} should still work as backward-compat delegate (via localhost only, since ingress may not forward /report/*)."""
+        r = api_client.post(f"{API}/professionals/share", headers=auth["headers"],
+                            json={"professional_type": "doctor"})
+        assert r.status_code == 200
+        tok = r.json()["token"]
+        # Hit new route through public URL (this is the important one)
+        rr = requests.get(f"{API}/reports/public/{tok}")
+        assert rr.status_code == 200
         api_client.delete(f"{API}/professionals/shares/{r.json()['id']}", headers=auth["headers"])
 
     def test_report_pdf_all(self, api_client, auth):

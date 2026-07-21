@@ -76,13 +76,13 @@ export default function ProfessionalShareScreen() {
   };
 
   const copyLink = async (token: string) => {
-    const url = `${backendUrl}/report/${token}`;
+    const url = `${backendUrl}/api/reports/public/${token}`;
     await Clipboard.setStringAsync(url);
     Alert.alert('Link copiado', url);
   };
 
   const openLink = (token: string) => {
-    const url = `${backendUrl}/report/${token}`;
+    const url = `${backendUrl}/api/reports/public/${token}`;
     Linking.openURL(url).catch(() => Alert.alert('Não foi possível abrir', url));
   };
 

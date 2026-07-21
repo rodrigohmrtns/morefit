@@ -110,37 +110,46 @@ user_problem_statement: |
 backend:
   - task: "Gamification leaderboard endpoint"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Added /api/gamification/leaderboard computing XP per user (streak + activity counts), sorts, returns top 20 + my_rank."
+        -working: true
+        -agent: "testing"
+        -comment: "Verified: is_me flag correct, rank starts at 1, sorted desc, my_rank present. 17/17 tests pass."
   - task: "Report PDF filtered by professional type"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
-        -comment: "GET /api/report/pdf?type=all|nutritionist|personal|doctor. Public HTML /report/{token} filters sections based on share.professional_type."
+        -comment: "GET /api/report/pdf?type=all|nutritionist|personal|doctor. Public HTML now at /api/reports/public/{token} (was /report/{token} — moved under /api because K8s ingress only forwards /api/*). Legacy /report/{token} delegate kept for backward compat."
+        -working: true
+        -agent: "testing"
+        -comment: "PDF endpoint returns %PDF- bytes + correct filename per type. Public HTML: nutri has 'Refeições recentes' but NOT 'Sono'/'Exercícios'; personal has 'Exercícios' but not 'Refeições'; doctor has 'Sono'. All assertions pass."
   - task: "Community CRUD (posts, likes, comments)"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Endpoints already present: POST /api/community/posts, GET list (kind filter), like toggle, comments GET/POST, DELETE post."
+        -working: true
+        -agent: "testing"
+        -comment: "Full CRUD verified end-to-end via pytest: create → list → filter → like toggle → comment → delete."
 
 frontend:
   - task: "Gamification screen (achievements + ranking)"
