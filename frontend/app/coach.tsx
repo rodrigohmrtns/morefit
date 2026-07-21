@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
+import { useLocale } from '@/src/i18n';
 import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Message = { role: 'user' | 'assistant'; content: string; created_at?: string };
@@ -16,18 +17,15 @@ type Analysis = {
   stagnation_alert?: boolean; next_actions?: string[];
 };
 
-const SUGGESTIONS = [
-  'Como está minha evolução?',
-  'O que posso melhorar na alimentação?',
-  'Estou dormindo o suficiente?',
-  'Me dê 3 metas para esta semana',
-  'Como quebrar minha estagnação?',
-];
-
 export default function Coach() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const SUGGESTIONS = [
+    t('coach.suggest1'), t('coach.suggest2'), t('coach.suggest3'),
+    t('coach.suggest4'), t('coach.suggest5'),
+  ];
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -79,17 +77,17 @@ export default function Coach() {
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={s.title}>Coach IA</Text>
+            <Text style={s.title}>{t('coach.title')}</Text>
             <View style={s.headerSub}>
               <View style={s.dot} />
-              <Text style={s.headerSubTxt}>Online • Gemini 2.5 Flash</Text>
+              <Text style={s.headerSubTxt}>{t('coach.online')}</Text>
             </View>
           </View>
           <Pressable onPress={analyze} style={s.analyzeBtn} disabled={analyzing} testID="coach-analyze-btn">
             {analyzing ? <ActivityIndicator size="small" color={colors.brandDark} /> : (
               <>
                 <Ionicons name="analytics" size={14} color={colors.brandDark} />
-                <Text style={s.analyzeTxt}>Analisar</Text>
+                <Text style={s.analyzeTxt}>{t('coach.analyze')}</Text>
               </>
             )}
           </Pressable>
@@ -108,18 +106,18 @@ export default function Coach() {
             <View style={s.analysisCard} testID="coach-analysis-card">
               <View style={s.analysisHead}>
                 <Ionicons name="sparkles" size={18} color={colors.brandDark} />
-                <Text style={s.analysisTitle}>Sua análise</Text>
+                <Text style={s.analysisTitle}>{t('coach.analysisTitle')}</Text>
               </View>
               {analysis.summary && <Text style={s.analysisSummary}>{analysis.summary}</Text>}
               {analysis.stagnation_alert && (
                 <View style={s.stagBox}>
                   <Ionicons name="warning" size={14} color="#F4A261" />
-                  <Text style={s.stagTxt}>Detectamos estagnação — hora de ajustar</Text>
+                  <Text style={s.stagTxt}>{t('coach.stagnation')}</Text>
                 </View>
               )}
               {!!analysis.strengths?.length && (
                 <View style={{ gap: 4 }}>
-                  <Text style={s.aLabel}>Pontos fortes</Text>
+                  <Text style={s.aLabel}>{t('coach.strengths')}</Text>
                   {analysis.strengths.map((x, i) => (
                     <View key={i} style={s.aRow}><Ionicons name="checkmark" size={14} color={colors.success} /><Text style={s.aRowTxt}>{x}</Text></View>
                   ))}
@@ -127,7 +125,7 @@ export default function Coach() {
               )}
               {!!analysis.opportunities?.length && (
                 <View style={{ gap: 4 }}>
-                  <Text style={s.aLabel}>Oportunidades</Text>
+                  <Text style={s.aLabel}>{t('coach.opportunities')}</Text>
                   {analysis.opportunities.map((x, i) => (
                     <View key={i} style={s.aRow}><Ionicons name="arrow-up" size={14} color={colors.warning} /><Text style={s.aRowTxt}>{x}</Text></View>
                   ))}
@@ -135,7 +133,7 @@ export default function Coach() {
               )}
               {!!analysis.next_actions?.length && (
                 <View style={{ gap: 4 }}>
-                  <Text style={s.aLabel}>Próximas ações</Text>
+                  <Text style={s.aLabel}>{t('coach.nextActions')}</Text>
                   {analysis.next_actions.map((x, i) => (
                     <View key={i} style={s.aRow}><Ionicons name="flash" size={14} color={colors.brandDark} /><Text style={s.aRowTxt}>{x}</Text></View>
                   ))}
@@ -148,9 +146,9 @@ export default function Coach() {
           {messages.length === 0 && !analysis && (
             <View style={s.welcome}>
               <View style={s.welcomeIcon}><Ionicons name="chatbubbles" size={28} color={colors.brandDark} /></View>
-              <Text style={s.welcomeTitle}>Olá! Sou seu Coach IA</Text>
+              <Text style={s.welcomeTitle}>{t('coach.welcomeTitle')}</Text>
               <Text style={s.welcomeSub}>
-                Posso analisar sua evolução, sono, alimentação e sugerir metas. Como posso ajudar hoje?
+                {t('coach.welcomeSub')}
               </Text>
             </View>
           )}

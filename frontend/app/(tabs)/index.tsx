@@ -11,6 +11,7 @@ import Animated, {
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLocale } from '@/src/i18n';
 import { haptic } from '@/src/utils/haptic';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
@@ -29,18 +30,18 @@ type Summary = {
   photos: { id: string; date: string; weight_kg?: number }[];
 };
 
-const BMI_LABEL = (bmi: number) => {
-  if (bmi < 18.5) return 'Abaixo';
-  if (bmi < 25) return 'Saudável';
-  if (bmi < 30) return 'Sobrepeso';
-  return 'Obesidade';
-};
-
 export default function Home() {
   const { user } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
+  const { t, locale } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const BMI_LABEL = useCallback((bmi: number) => {
+    if (bmi < 18.5) return t('home.bmiUnder');
+    if (bmi < 25) return t('home.bmiHealthy');
+    if (bmi < 30) return t('home.bmiOver');
+    return t('home.bmiObese');
+  }, [t]);
   const [data, setData] = useState<Summary | null>(null);
   const [quote, setQuote] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
@@ -92,8 +93,8 @@ export default function Home() {
       <SafeAreaView edges={['top']} style={s.headerSafe}>
         <View style={s.header}>
           <View>
-            <Text style={s.greeting}>Olá, {user?.name?.split(' ')[0] ?? 'você'}</Text>
-            <Text style={s.subGreeting}>{formatBrDate(new Date())}</Text>
+            <Text style={s.greeting}>{t('home.greeting')}, {user?.name?.split(' ')[0] ?? 'you'}</Text>
+            <Text style={s.subGreeting}>{formatDate(new Date(), locale)}</Text>
           </View>
           <Pressable style={s.avatar} onPress={() => router.push('/(tabs)/profile')} testID="home-avatar">
             {user?.photo_base64 ? (
@@ -122,18 +123,18 @@ export default function Home() {
         <View style={s.heroCard}>
           <View style={s.heroRow}>
             <View style={{ flex: 1 }}>
-              <Text style={s.heroLabel}>Peso atual</Text>
+              <Text style={s.heroLabel}>{t('home.weightCurrent')}</Text>
               <Text style={s.heroValue}>
                 {data?.weight.current_kg ? data.weight.current_kg.toFixed(1) : '—'}
                 <Text style={s.heroUnit}> kg</Text>
               </Text>
               <Text style={s.heroMeta}>
-                Meta: {data?.weight.goal_kg ? `${data.weight.goal_kg} kg` : '—'}
+                {t('home.weightGoal')}: {data?.weight.goal_kg ? `${data.weight.goal_kg} kg` : '—'}
               </Text>
             </View>
             <View style={s.daysBadge}>
               <Text style={s.daysNum}>{data?.days_remaining ?? '—'}</Text>
-              <Text style={s.daysTxt}>dias{'\n'}restantes</Text>
+              <Text style={s.daysTxt}>{t('home.daysRemaining').split(' ').join('\n')}</Text>
             </View>
           </View>
           {data?.bmi != null && (
@@ -148,7 +149,7 @@ export default function Home() {
 
         {/* Calories card */}
         <View style={s.mainCard}>
-          <Text style={s.mainLabel}>Calorias restantes</Text>
+          <Text style={s.mainLabel}>{t('home.caloriesRemaining')}</Text>
           <View style={s.mainRow}>
             <Text style={s.mainValue}>{remaining}</Text>
             <Text style={s.mainUnit}>kcal</Text>
@@ -157,17 +158,17 @@ export default function Home() {
             <View style={[s.progressFill, { width: `${progressPct}%` }]} />
           </View>
           <View style={s.mainStats}>
-            <Stat colors={colors} label="Meta" value={`${kcalGoal}`} />
-            <Stat colors={colors} label="Consumidas" value={`${Math.round(kcalConsumed)}`} />
-            <Stat colors={colors} label="Queimadas" value={`${Math.round(kcalBurned)}`} />
+            <Stat colors={colors} label={t('home.caloriesGoal')} value={`${kcalGoal}`} />
+            <Stat colors={colors} label={t('home.caloriesConsumed')} value={`${Math.round(kcalConsumed)}`} />
+            <Stat colors={colors} label={t('home.caloriesBurned')} value={`${Math.round(kcalBurned)}`} />
           </View>
         </View>
 
         {/* Macros row */}
         <View style={s.macrosRow}>
-          <MacroChip colors={colors} label="Proteína" value={data?.macros.protein_g ?? 0} tint={colors.tintCoral} />
-          <MacroChip colors={colors} label="Carbo" value={data?.macros.carbs_g ?? 0} tint={colors.tintButter} />
-          <MacroChip colors={colors} label="Gordura" value={data?.macros.fat_g ?? 0} tint={colors.tintMint} />
+          <MacroChip colors={colors} label={t('home.protein')} value={data?.macros.protein_g ?? 0} tint={colors.tintCoral} />
+          <MacroChip colors={colors} label={t('home.carbs')} value={data?.macros.carbs_g ?? 0} tint={colors.tintButter} />
+          <MacroChip colors={colors} label={t('home.fat')} value={data?.macros.fat_g ?? 0} tint={colors.tintMint} />
         </View>
 
         {/* 2x2 stat grid: água, passos, sono, exercícios */}
@@ -175,7 +176,7 @@ export default function Home() {
           <Pressable style={{ flex: 1 }} onPress={() => router.push('/water')} testID="home-water-card">
             <StatCard
               colors={colors} tint={colors.tintSky} icon="water" iconColor={colors.info}
-              label="Hidratação" value={`${waterTotal}`} unit="ml" progress={waterPct}
+              label={t('home.hydration')} value={`${waterTotal}`} unit="ml" progress={waterPct}
               action={<View style={s.miniActions}>
                 {[200, 300, 500].map(ml => (
                   <Pressable key={ml} onPress={() => addWater(ml)} style={s.miniBtn} testID={`home-water-${ml}`}>
@@ -188,7 +189,7 @@ export default function Home() {
           <Pressable style={{ flex: 1 }} onPress={() => router.push('/steps')} testID="home-steps-card">
             <StatCard
               colors={colors} tint={colors.tintLavender} icon="footsteps" iconColor="#8B7FD9"
-              label="Passos" value={`${steps}`} unit={`/ ${stepsGoal}`} progress={stepsPct}
+              label={t('home.steps')} value={`${steps}`} unit={`/ ${stepsGoal}`} progress={stepsPct}
             />
           </Pressable>
         </View>
@@ -197,7 +198,7 @@ export default function Home() {
           <Pressable style={{ flex: 1 }} onPress={() => router.push('/sleep-log')} testID="home-sleep-card">
             <StatCard
               colors={colors} tint={colors.tintPeach} icon="moon" iconColor="#D07A45"
-              label="Sono" value={data?.sleep.last_hours != null ? `${data.sleep.last_hours}` : '—'} unit="h"
+              label={t('home.sleep')} value={data?.sleep.last_hours != null ? `${data.sleep.last_hours}` : '—'} unit="h"
               progress={data?.sleep.last_hours ? Math.min(100, (data.sleep.last_hours / (data.sleep.goal_hours || 8)) * 100) : 0}
             />
           </Pressable>
@@ -206,7 +207,7 @@ export default function Home() {
               colors={colors} tint={colors.tintMint} icon="flame" iconColor={colors.success}
               label="Exercícios" value={`${data?.exercises.minutes ?? 0}`} unit="min"
               progress={Math.min(100, ((data?.exercises.minutes ?? 0) / 60) * 100)}
-              sub={`${data?.exercises.count ?? 0} atividades`}
+              sub={`${data?.exercises.count ?? 0} ${t('home.activities')}`}
             />
           </Pressable>
         </View>
@@ -215,8 +216,8 @@ export default function Home() {
         <Pressable style={s.compCta} onPress={() => router.push('/body-composition')} testID="home-body-comp-cta">
           <View style={s.compIcon}><Ionicons name="body" size={20} color={colors.brandDark} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={s.compTitle}>Composição corporal</Text>
-            <Text style={s.compSub}>Peso, IMC, gordura, TMB, idade metabólica</Text>
+            <Text style={s.compTitle}>{t('home.bodyComposition')}</Text>
+            <Text style={s.compSub}>{t('home.bodyCompositionSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
@@ -225,8 +226,8 @@ export default function Home() {
         <Pressable style={s.fastCta} onPress={() => router.push('/fasting')} testID="home-fasting-cta">
           <View style={s.fastIcon}><Ionicons name="timer-outline" size={22} color={colors.brandDark} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={s.fastTitle}>Jejum Intermitente</Text>
-            <Text style={s.fastSub}>Cronômetro, protocolos 16:8, 18:6, 20:4, OMAD</Text>
+            <Text style={s.fastTitle}>{t('home.fasting')}</Text>
+            <Text style={s.fastSub}>{t('home.fastingSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.brandDark} />
         </Pressable>
@@ -236,8 +237,8 @@ export default function Home() {
           <Pressable style={s.aiCta} onPress={() => { haptic.tap(); router.push(user?.is_premium ? '/scan' : '/paywall'); }} testID="home-ai-scan-cta">
             <View style={s.aiIcon}><Ionicons name={user?.is_premium ? 'sparkles' : 'lock-closed'} size={22} color={colors.brandDark} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.aiTitle}>Escanear com IA {!user?.is_premium && '🔒'}</Text>
-              <Text style={s.aiSub}>Foto → macros em segundos</Text>
+              <Text style={s.aiTitle}>{t('home.scanAI')} {!user?.is_premium && '🔒'}</Text>
+              <Text style={s.aiSub}>{t('home.scanAISub')}</Text>
             </View>
           </Pressable>
           <Pressable style={s.aiCta2} onPress={() => { haptic.tap(); router.push(user?.is_premium ? '/coach' : '/paywall'); }} testID="home-ai-coach-cta">
@@ -245,8 +246,8 @@ export default function Home() {
               <Ionicons name={user?.is_premium ? 'chatbubbles' : 'lock-closed'} size={22} color={colors.brandPrimary} />
             </Animated.View>
             <View style={{ flex: 1 }}>
-              <Text style={s.aiTitle2}>Coach IA {!user?.is_premium && '🔒'}</Text>
-              <Text style={s.aiSub2}>Pergunte ao seu nutri</Text>
+              <Text style={s.aiTitle2}>{t('home.coachAI')} {!user?.is_premium && '🔒'}</Text>
+              <Text style={s.aiSub2}>{t('home.coachAISub')}</Text>
             </View>
           </Pressable>
         </View>
@@ -256,8 +257,8 @@ export default function Home() {
           <Pressable style={s.recipesCta} onPress={() => { haptic.tap(); router.push('/recipes'); }} testID="home-recipes-cta">
             <View style={s.recipesIcon}><Text style={{ fontSize: 22 }}>🍽️</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.recipesTitle}>Receitas IA {!user?.is_premium && '🔒'}</Text>
-              <Text style={s.recipesSub}>3 receitas para seu objetivo em segundos</Text>
+              <Text style={s.recipesTitle}>{t('home.recipesTitle')} {!user?.is_premium && '🔒'}</Text>
+              <Text style={s.recipesSub}>{t('home.recipesSub')}</Text>
             </View>
             <Ionicons name="sparkles" size={18} color={colors.brandDark} />
           </Pressable>
@@ -268,15 +269,15 @@ export default function Home() {
           <Pressable style={s.gamiCta} onPress={() => router.push('/gamification')} testID="home-gami-cta">
             <View style={s.gamiIcon}><Ionicons name="trophy" size={22} color={colors.brandDark} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.gamiTitle}>Conquistas</Text>
-              <Text style={s.gamiSub}>XP, ranking global</Text>
+              <Text style={s.gamiTitle}>{t('home.achievements')}</Text>
+              <Text style={s.gamiSub}>{t('home.achievementsSub')}</Text>
             </View>
           </Pressable>
           <Pressable style={s.commCta} onPress={() => router.push('/community')} testID="home-community-cta">
             <View style={s.commIcon}><Ionicons name="people" size={22} color={colors.brandPrimary} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.commTitle}>Comunidade</Text>
-              <Text style={s.commSub}>Feed & posts</Text>
+              <Text style={s.commTitle}>{t('home.community')}</Text>
+              <Text style={s.commSub}>{t('home.communitySub')}</Text>
             </View>
           </Pressable>
         </View>
@@ -284,8 +285,8 @@ export default function Home() {
         <Pressable style={s.shareCta} onPress={() => router.push('/professional-share')} testID="home-share-cta">
           <View style={s.shareIconWrap}><Ionicons name="document-text" size={20} color={colors.brandDark} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={s.shareTitle}>Compartilhar com profissionais</Text>
-            <Text style={s.shareSub}>PDF ou link para Nutri, Personal e Médico</Text>
+            <Text style={s.shareTitle}>{t('home.shareWithPros')}</Text>
+            <Text style={s.shareSub}>{t('home.shareWithProsSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
@@ -295,8 +296,8 @@ export default function Home() {
             <Ionicons name="business" size={20} color={colors.brandPrimary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.shareTitle}>Empresas & Equipes</Text>
-            <Text style={s.shareSub}>Plano corporativo, campanhas e desafios coletivos</Text>
+            <Text style={s.shareTitle}>{t('home.companies')}</Text>
+            <Text style={s.shareSub}>{t('home.companiesSub')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
@@ -304,15 +305,15 @@ export default function Home() {
         {/* Photos strip */}
         <View style={s.section}>
           <View style={s.sectionHead}>
-            <Text style={s.sectionTitle}>Fotos de progresso</Text>
+            <Text style={s.sectionTitle}>{t('home.progressPhotos')}</Text>
             <Pressable onPress={() => router.push('/photos')} testID="home-photos-link">
-              <Text style={s.linkTxt}>Ver todas</Text>
+              <Text style={s.linkTxt}>{t('home.viewAll')}</Text>
             </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.photosRow}>
             <Pressable style={s.photoAdd} onPress={() => router.push('/photos')} testID="home-photo-add">
               <Ionicons name="add" size={28} color={colors.brandDark} />
-              <Text style={s.photoAddTxt}>Adicionar</Text>
+              <Text style={s.photoAddTxt}>{t('food.addMore').split(' ')[0]}</Text>
             </Pressable>
             {(data?.photos ?? []).map(p => (
               <View key={p.id} style={s.photoItem}>
@@ -380,6 +381,15 @@ function formatBrDate(d: Date): string {
   const days = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
   const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`;
+}
+function formatDate(d: Date, locale: string): string {
+  const map: Record<string, string> = { 'pt-BR': 'pt-BR', en: 'en-US', es: 'es-ES' };
+  try {
+    const s = d.toLocaleDateString(map[locale] || 'pt-BR', { weekday: 'long', day: '2-digit', month: 'short' });
+    return s;
+  } catch {
+    return formatBrDate(d);
+  }
 }
 function formatShort(iso: string): string {
   const d = new Date(iso);

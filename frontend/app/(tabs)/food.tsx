@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
+import { useLocale } from '@/src/i18n';
 import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Meal = {
@@ -12,16 +13,17 @@ type Meal = {
   calories: number; protein_g: number; carbs_g: number; fat_g: number; portion?: string;
 };
 
-const CATS: { key: Meal['meal_type']; label: string; icon: any; tintKey: keyof ThemeColors }[] = [
-  { key: 'breakfast', label: 'Café da manhã', icon: 'sunny', tintKey: 'tintButter' },
-  { key: 'lunch', label: 'Almoço', icon: 'restaurant', tintKey: 'tintMint' },
-  { key: 'dinner', label: 'Jantar', icon: 'moon', tintKey: 'tintLavender' },
-  { key: 'snack', label: 'Lanches', icon: 'nutrition', tintKey: 'tintPeach' },
+const CATS: { key: Meal['meal_type']; labelKey: string; icon: any; tintKey: keyof ThemeColors }[] = [
+  { key: 'breakfast', labelKey: 'food.breakfast', icon: 'sunny', tintKey: 'tintButter' },
+  { key: 'lunch', labelKey: 'food.lunch', icon: 'restaurant', tintKey: 'tintMint' },
+  { key: 'dinner', labelKey: 'food.dinner', icon: 'moon', tintKey: 'tintLavender' },
+  { key: 'snack', labelKey: 'food.snack', icon: 'nutrition', tintKey: 'tintPeach' },
 ];
 
 export default function FoodDiary() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [meals, setMeals] = useState<Meal[]>([]);
 
@@ -38,8 +40,8 @@ export default function FoodDiary() {
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
           <View>
-            <Text style={s.title}>Diário Alimentar</Text>
-            <Text style={s.sub}>Hoje • {Math.round(total)} kcal registradas</Text>
+            <Text style={s.title}>{t('food.diaryTitle')}</Text>
+            <Text style={s.sub}>{t('food.today')} • {Math.round(total)} {t('food.kcalLogged')}</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable style={s.searchPill} onPress={() => router.push('/food-add')} testID="food-add-fab">
@@ -47,7 +49,7 @@ export default function FoodDiary() {
             </Pressable>
             <Pressable style={s.aiPill} onPress={() => router.push('/scan')} testID="food-ai-fab">
               <Ionicons name="sparkles" size={16} color={colors.brandDark} />
-              <Text style={s.aiPillTxt}>Scan IA</Text>
+              <Text style={s.aiPillTxt}>{t('food.scanAI')}</Text>
             </Pressable>
           </View>
         </View>
@@ -65,7 +67,7 @@ export default function FoodDiary() {
                   <View style={[s.catIcon, { backgroundColor: tint }]}>
                     <Ionicons name={cat.icon} size={16} color={colors.onTint} />
                   </View>
-                  <Text style={s.sectionTitle}>{cat.label}</Text>
+                  <Text style={s.sectionTitle}>{t(cat.labelKey)}</Text>
                 </View>
                 <Text style={s.sectionMeta}>{Math.round(cal)} kcal</Text>
               </View>
@@ -74,7 +76,7 @@ export default function FoodDiary() {
                   <Pressable onPress={() => router.push({ pathname: '/food-add', params: { meal_type: cat.key } })}
                     style={s.emptyRow} testID={`food-empty-${cat.key}`}>
                     <View style={s.plusBadge}><Ionicons name="add" size={18} color={colors.brandDark} /></View>
-                    <Text style={s.emptyTxt}>Adicionar refeição</Text>
+                    <Text style={s.emptyTxt}>{t('food.addMeal')}</Text>
                   </Pressable>
                 ) : items.map(m => (
                   <View key={m.id} style={s.mealRow}>
@@ -93,7 +95,7 @@ export default function FoodDiary() {
                   <Pressable onPress={() => router.push({ pathname: '/food-add', params: { meal_type: cat.key } })}
                     style={s.addMore} testID={`food-add-${cat.key}`}>
                     <Ionicons name="add" size={16} color={colors.brandPrimary} />
-                    <Text style={s.addMoreTxt}>Adicionar mais</Text>
+                    <Text style={s.addMoreTxt}>{t('food.addMore')}</Text>
                   </Pressable>
                 )}
               </View>

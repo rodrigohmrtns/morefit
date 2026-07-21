@@ -378,3 +378,41 @@ Tela `/notifications-settings.tsx`:
 ### Testes
 - **53/53 pytest passando** (48 existentes + 5 novos em test_recipes.py cobrindo auth/premium gate/schema/restrictions).
 - Validação end-to-end no browser: Ana promovida a premium gerou receita real ("Frango Grelhado com Salada Tropical e Quinoa" com 540kcal).
+
+## v1.8 – Refatoração Backend (P1)
+
+`server.py` foi reduzido de **2627 → 154 linhas (-94%)** com Clean Architecture completa:
+
+**Novos módulos:**
+- `deps.py` (264 linhas): DB, utils (JWT, bcrypt, uuid), `current_user`, `require_premium`, `_is_premium`, `_public_user`, `_extract_json`, e todos os Pydantic models compartilhados.
+- `routers/auth.py` (134 linhas): register, login, google-session, me, logout, profile.
+- `routers/tracking.py` (284 linhas): weight, water, exercises, sleep, mood, photos, steps, fasting.
+- `routers/food.py` (155 linhas): foods search + barcode + favorites + meals CRUD.
+- `routers/coach.py` (303 linhas): coach chat, analyze, recipes, meals/analyze (Gemini), photos/compare.
+- `routers/analytics.py` (250 linhas): analytics/weight, analytics/compare, dashboard/summary, motivation, steps history.
+- `routers/gamification.py` (171 linhas): XP, achievements, streak, leaderboard.
+- `routers/community.py` (95 linhas): posts, likes, comments.
+- `routers/professional.py` (240 linhas): shares, PDF report, HTML public report.
+- `routers/companies.py` (562 linhas): companies CRUD, members, campaigns, dashboard, leaderboard, corporate PDF.
+- `routers/billing.py` (231 linhas): Stripe checkout, status, webhook, subscription, plans.
+
+`server.py` agora só faz:
+1. Registrar middlewares (rate limit, security headers, CORS)
+2. Compor todos os routers no APIRouter `/api`
+3. Rota legada `/report/{token}` (sem /api prefix)
+4. Startup — criar todos os índices MongoDB
+5. Root endpoint
+
+**Zero regressão: 53/53 pytest passando (55s de execução).** App testado end-to-end no browser (login → dashboard → recipes CTA).
+
+## v1.9 – i18n Completo (P2)
+
+**Todas as telas principais agora traduzidas** com pt-BR + en + es:
+- `tabs/_layout.tsx`: labels de navegação (Início/Diário/Progresso/Perfil).
+- `tabs/index.tsx` (Home): saudação, peso, IMC labels (Saudável/Sobrepeso/etc), calorias, macros, hidratação, passos, sono, exercícios, todos os CTAs (Coach IA, Scan IA, Receitas, Conquistas, Comunidade, Compartilhar, Empresas, Fotos), datas locale-aware.
+- `tabs/food.tsx`: Diário Alimentar, categorias de refeição, ações.
+- `tabs/progress.tsx`: título, subtítulo, seletores de período, todas as 14 métricas, stats (Média/Mín/Máx), tendência semanal, previsão 30 dias, comparação, empty state.
+- `coach.tsx`: título Coach IA, sugestões de perguntas, welcome, análise (pontos fortes, oportunidades, próximas ações), placeholder de input.
+- **Datas** formatadas de acordo com o locale via `toLocaleDateString`.
+
+**Validação**: Screenshot confirmou troca instantânea PT → EN em todas as labels da Home (Peso atual→Current weight, Meta→Goal, dias restantes→days remaining, IMC→BMI, Sobrepeso→Overweight, tabs Home/Diary/Progress/Profile).

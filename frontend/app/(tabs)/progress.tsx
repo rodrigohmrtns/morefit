@@ -6,34 +6,35 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { api } from '@/src/api/client';
+import { useLocale } from '@/src/i18n';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 type Metric = 'weight' | 'bmi' | 'body_fat' | 'muscle' | 'water_pct' | 'waist' | 'hip'
   | 'arm' | 'chest' | 'abdomen' | 'thigh' | 'calf' | 'neck' | 'shoulders';
 
-const PERIODS: { key: Period; label: string }[] = [
-  { key: 'day', label: 'Diário' },
-  { key: 'week', label: 'Semanal' },
-  { key: 'month', label: 'Mensal' },
-  { key: 'year', label: 'Anual' },
+const PERIODS: { key: Period; labelKey: string }[] = [
+  { key: 'day', labelKey: 'progress.daily' },
+  { key: 'week', labelKey: 'progress.weekly' },
+  { key: 'month', labelKey: 'progress.monthly' },
+  { key: 'year', labelKey: 'progress.yearly' },
 ];
 
-const METRICS: { key: Metric; label: string; unit: string; icon: any }[] = [
-  { key: 'weight', label: 'Peso', unit: 'kg', icon: 'scale' },
-  { key: 'bmi', label: 'IMC', unit: '', icon: 'body' },
-  { key: 'body_fat', label: 'Gordura', unit: '%', icon: 'water' },
-  { key: 'muscle', label: 'Massa', unit: 'kg', icon: 'fitness' },
-  { key: 'water_pct', label: 'Água', unit: '%', icon: 'water-outline' },
-  { key: 'arm', label: 'Braço', unit: 'cm', icon: 'barbell' },
-  { key: 'chest', label: 'Peito', unit: 'cm', icon: 'shirt' },
-  { key: 'abdomen', label: 'Abdômen', unit: 'cm', icon: 'body' },
-  { key: 'waist', label: 'Cintura', unit: 'cm', icon: 'resize' },
-  { key: 'hip', label: 'Quadril', unit: 'cm', icon: 'resize-outline' },
-  { key: 'thigh', label: 'Coxa', unit: 'cm', icon: 'walk' },
-  { key: 'calf', label: 'Panturrilha', unit: 'cm', icon: 'footsteps' },
-  { key: 'neck', label: 'Pescoço', unit: 'cm', icon: 'ellipse' },
-  { key: 'shoulders', label: 'Ombros', unit: 'cm', icon: 'triangle' },
+const METRICS: { key: Metric; unit: string; icon: any }[] = [
+  { key: 'weight', unit: 'kg', icon: 'scale' },
+  { key: 'bmi', unit: '', icon: 'body' },
+  { key: 'body_fat', unit: '%', icon: 'water' },
+  { key: 'muscle', unit: 'kg', icon: 'fitness' },
+  { key: 'water_pct', unit: '%', icon: 'water-outline' },
+  { key: 'arm', unit: 'cm', icon: 'barbell' },
+  { key: 'chest', unit: 'cm', icon: 'shirt' },
+  { key: 'abdomen', unit: 'cm', icon: 'body' },
+  { key: 'waist', unit: 'cm', icon: 'resize' },
+  { key: 'hip', unit: 'cm', icon: 'resize-outline' },
+  { key: 'thigh', unit: 'cm', icon: 'walk' },
+  { key: 'calf', unit: 'cm', icon: 'footsteps' },
+  { key: 'neck', unit: 'cm', icon: 'ellipse' },
+  { key: 'shoulders', unit: 'cm', icon: 'triangle' },
 ];
 
 type Series = { series: { date: string; value: number }[]; stats: {
@@ -44,6 +45,7 @@ type Series = { series: { date: string; value: number }[]; stats: {
 export default function Progress() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('week');
   const [metric, setMetric] = useState<Metric>('weight');
@@ -65,6 +67,7 @@ export default function Progress() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const currentMeta = METRICS.find(m => m.key === metric)!;
+  const currentLabel = t(`progress.metrics.${metric}`);
   const unit = currentMeta.unit;
 
   return (
@@ -72,8 +75,8 @@ export default function Progress() {
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
           <View>
-            <Text style={s.title}>Progresso</Text>
-            <Text style={s.sub}>Gráficos & tendências</Text>
+            <Text style={s.title}>{t('progress.title')}</Text>
+            <Text style={s.sub}>{t('progress.subtitle')}</Text>
           </View>
           <Pressable style={s.addBtn} onPress={() => router.push('/weight-log')} testID="progress-add-log">
             <Ionicons name="add" size={22} color={colors.brandDark} />
@@ -92,7 +95,7 @@ export default function Progress() {
               testID={`progress-metric-${m.key}`}
             >
               <Ionicons name={m.icon} size={14} color={metric === m.key ? colors.onBrandPrimary : colors.onSurface} />
-              <Text style={[s.mChipTxt, metric === m.key && { color: colors.onBrandPrimary, fontWeight: '700' }]}>{m.label}</Text>
+              <Text style={[s.mChipTxt, metric === m.key && { color: colors.onBrandPrimary, fontWeight: '700' }]}>{t(`progress.metrics.${m.key}`)}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -106,14 +109,14 @@ export default function Progress() {
               style={[s.pChip, period === p.key && s.pChipActive]}
               testID={`progress-period-${p.key}`}
             >
-              <Text style={[s.pChipTxt, period === p.key && { color: colors.onSurface, fontWeight: '700' }]}>{p.label}</Text>
+              <Text style={[s.pChipTxt, period === p.key && { color: colors.onSurface, fontWeight: '700' }]}>{t(p.labelKey)}</Text>
             </Pressable>
           ))}
         </View>
 
         {/* Big stat card */}
         <View style={s.bigCard}>
-          <Text style={s.bigLabel}>{currentMeta.label} atual</Text>
+          <Text style={s.bigLabel}>{currentLabel} {t('progress.currentValue')}</Text>
           <View style={s.bigRow}>
             <Text style={s.bigValue}>
               {data?.stats.current != null ? formatVal(data.stats.current, metric) : '—'}
@@ -129,17 +132,17 @@ export default function Progress() {
                 </Text>
               </View>
             )}
-            <Text style={s.diffMeta}>no período</Text>
+            <Text style={s.diffMeta}>{t('progress.inPeriod')}</Text>
           </View>
         </View>
 
         {/* Chart */}
         <View style={s.card}>
-          <Text style={s.cardTitle}>Evolução</Text>
+          <Text style={s.cardTitle}>{t('progress.evolution')}</Text>
           {!data || data.series.length < 2 ? (
             <View style={s.emptyChart}>
               <Ionicons name="analytics-outline" size={44} color={colors.muted} />
-              <Text style={s.emptyTxt}>Registre mais medições para ver o gráfico.</Text>
+              <Text style={s.emptyTxt}>{t('progress.emptyChart')}</Text>
             </View>
           ) : (
             <Chart colors={colors} series={data.series} predicted={data.stats.predicted_30d ?? undefined} />
@@ -148,9 +151,9 @@ export default function Progress() {
 
         {/* Stats grid */}
         <View style={s.statsGrid}>
-          <StatCard colors={colors} tint={colors.tintMint} label="Média" value={data?.stats.avg} unit={unit} metric={metric} />
-          <StatCard colors={colors} tint={colors.tintSky} label="Mín" value={data?.stats.min} unit={unit} metric={metric} />
-          <StatCard colors={colors} tint={colors.tintPeach} label="Máx" value={data?.stats.max} unit={unit} metric={metric} />
+          <StatCard colors={colors} tint={colors.tintMint} label={t('progress.avg')} value={data?.stats.avg} unit={unit} metric={metric} />
+          <StatCard colors={colors} tint={colors.tintSky} label={t('progress.min')} value={data?.stats.min} unit={unit} metric={metric} />
+          <StatCard colors={colors} tint={colors.tintPeach} label={t('progress.max')} value={data?.stats.max} unit={unit} metric={metric} />
         </View>
 
         {/* Trend + Prediction */}
@@ -158,7 +161,7 @@ export default function Progress() {
           <View style={s.trendRow}>
             <View style={s.trendIcon}><Ionicons name="trending-up" size={20} color={colors.brandDark} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.trendLabel}>Tendência semanal</Text>
+              <Text style={s.trendLabel}>{t('progress.weeklyTrend')}</Text>
               <Text style={s.trendVal}>
                 {data?.stats.trend_per_week != null
                   ? `${data.stats.trend_per_week > 0 ? '+' : ''}${data.stats.trend_per_week.toFixed(2)}${unit}/sem`
@@ -170,7 +173,7 @@ export default function Progress() {
           <View style={s.trendRow}>
             <View style={s.trendIcon}><Ionicons name="rocket" size={20} color={colors.brandDark} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.trendLabel}>Previsão em 30 dias</Text>
+              <Text style={s.trendLabel}>{t('progress.predict30d')}</Text>
               <Text style={s.trendVal}>
                 {data?.stats.predicted_30d != null
                   ? `${formatVal(data.stats.predicted_30d, metric)}${unit}`
@@ -183,7 +186,7 @@ export default function Progress() {
         {/* Comparison toggle */}
         <Pressable style={s.compareBtn} onPress={() => setShowCompare(v => !v)} testID="progress-toggle-compare">
           <Ionicons name={showCompare ? 'chevron-up' : 'git-compare'} size={18} color={colors.onSurface} />
-          <Text style={s.compareTxt}>{showCompare ? 'Ocultar comparação' : 'Comparar todas as métricas'}</Text>
+          <Text style={s.compareTxt}>{showCompare ? t('progress.hideCompare') : t('progress.showCompare')}</Text>
         </Pressable>
 
         {showCompare && compare && (
@@ -194,7 +197,7 @@ export default function Progress() {
                 <View key={m.key} style={s.miniCard}>
                   <View style={s.miniHead}>
                     <Ionicons name={m.icon} size={14} color={colors.brandDark} />
-                    <Text style={s.miniLabel}>{m.label}</Text>
+                    <Text style={s.miniLabel}>{t(`progress.metrics.${m.key}`)}</Text>
                   </View>
                   {series.length < 2 ? (
                     <Text style={s.miniEmpty}>—</Text>
@@ -216,7 +219,7 @@ export default function Progress() {
         {/* CTA */}
         <Pressable style={s.ctaBig} onPress={() => router.push('/weight-log')} testID="progress-log-cta">
           <Ionicons name="add-circle" size={22} color={colors.brandDark} />
-          <Text style={s.ctaBigTxt}>Registrar nova medição</Text>
+          <Text style={s.ctaBigTxt}>{t('progress.logNew')}</Text>
         </Pressable>
 
         <View style={{ height: spacing.xxl }} />
