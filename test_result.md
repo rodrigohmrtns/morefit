@@ -485,3 +485,95 @@ agent_communication:
       - 39/39 pytest passando (0 regressões)
       Próximas fases pendentes: Mercado Pago, Painel Super Admin, DB otimizado, UX Premium, Notificações.
 
+
+# ==================== Fases 4+5+M22+6: Admin+DB+Notif+UX (v1.6) ====================
+
+backend:
+  - task: "Super Admin service + router"
+    implemented: true
+    working: true
+    file: "backend/services/admin_service.py, backend/routers/admin.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "7 endpoints: /dashboard, /users (com search+paginação), /users/{id}/ban, /users/{id}/grant-premium, /audit, /transactions, /db-stats. Guard require_super_admin. Ana promovida a super_admin. 9/9 tests em test_admin.py passando."
+  - task: "DB otimizado (índices compostos)"
+    implemented: true
+    working: true
+    file: "backend/server.py (init_indexes)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Adicionados 15+ índices em users, payment_transactions, posts, comments, shares, audit_logs. Verificados via /admin/db-stats: 19 coleções, users tem 7 índices, audit_logs 4, payment_transactions 4."
+
+frontend:
+  - task: "Painel Super Admin (/admin)"
+    implemented: true
+    working: true
+    file: "frontend/app/admin.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "5 abas: Dashboard (6 métricas + revenue + auditoria), Usuários (search + grant/ban), Transações (Stripe), Auditoria global, DB stats. Guard client-side por role. CTA no Perfil (só super_admin). Validado com screenshot."
+  - task: "Notificações locais (/notifications-settings)"
+    implemented: true
+    working: true
+    file: "frontend/app/notifications-settings.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "4 lembretes pré-configurados (Água/Refeições/Peso/Sono) com toggles individuais, permissão contextual, teste imediato, cancel-all. Persistência em AsyncStorage. Web-safe. IMPORTANT: notificações REAIS só funcionam após publicar via Emergent Deploy (não em Expo Go)."
+  - task: "UX Premium: haptic feedback"
+    implemented: true
+    working: true
+    file: "frontend/src/utils/haptic.ts"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "API declarativa haptic.tap/select/success/warn/error. Web-safe. Aplicado em Home CTAs e toggles."
+
+tests:
+  - task: "Admin test coverage"
+    implemented: true
+    working: true
+    file: "backend/tests/test_admin.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "9 tests cobrindo access control (403 non-admin), dashboard, list users com search, grant premium com audit, filter audit, db-stats, transactions. Zero regressão: 48/48 total (13 base + 9 M16-20 + 9 LGPD + 9 Admin + outros)."
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Fases 4, 5, M22 (parcial) e 6 (parcial) entregues em uma sessão:
+      - Painel Super Admin completo com 5 abas
+      - 15+ índices compostos adicionados no MongoDB
+      - Lembretes locais via expo-notifications (4 reminders default)
+      - Haptic feedback via expo-haptics em CTAs principais
+      - 48/48 tests passando (0 regressão)
+
+      PENDENTE (precisa de chaves ou features externas):
+      - Fase 2 Mercado Pago (precisa MP_ACCESS_TOKEN)
+      - M22 Push remoto Emergent (precisa deploy real)
+      - M22 Email (precisa Resend/SendGrid)
+      - M22 SMS/WhatsApp (precisa Twilio)
+      - Fase 6 completa (Reanimated animations + skeletons — próxima iteração)
+

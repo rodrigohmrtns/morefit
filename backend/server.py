@@ -38,6 +38,7 @@ from middleware.security import (
     register_rate_limit,
 )
 from routers.lgpd import router as lgpd_router
+from routers.admin import router as admin_router
 from services.audit_service import audit_service
 
 ROOT_DIR = Path(__file__).parent
@@ -267,6 +268,19 @@ async def startup() -> None:
     await db.audit_logs.create_index([("user_id", 1), ("timestamp", -1)])
     await db.audit_logs.create_index("event_type")
     await db.audit_logs.create_index("timestamp")
+    # Fase 5 — DB Otimizado (compound indexes for hot queries)
+    await db.users.create_index("premium_expires_at", sparse=True)
+    await db.users.create_index("deletion_scheduled_at", sparse=True)
+    await db.users.create_index("role", sparse=True)
+    await db.users.create_index("banned", sparse=True)
+    await db.payment_transactions.create_index([("user_id", 1), ("created_at", -1)])
+    await db.payment_transactions.create_index("status")
+    await db.payment_transactions.create_index("session_id", unique=True)
+    await db.posts.create_index([("kind", 1), ("created_at", -1)])
+    await db.posts.create_index("user_id")
+    await db.comments.create_index([("post_id", 1), ("created_at", 1)])
+    await db.shares.create_index("token", unique=True)
+    await db.shares.create_index("user_id")
     log.info("VitaTracker DB indexes ready")
 
 
@@ -2539,6 +2553,7 @@ async def billing_plans():
 
 # LGPD router mounted under /api via composition (Clean Arch — new modules only)
 api.include_router(lgpd_router)
+api.include_router(admin_router)
 app.include_router(api)
 
 app.add_middleware(

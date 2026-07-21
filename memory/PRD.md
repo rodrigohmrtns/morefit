@@ -280,3 +280,67 @@ Server.py (legado) foi mantido mas passa a importar de `core/*`. Novos módulos 
 
 **Coverage**: 9/9 testes LGPD passando + 39/39 total (sem regressão nas fases anteriores).
 
+
+## Fase 4 – Painel Super Admin (v1.6)
+
+Nova estrutura Clean Arch:
+- `services/admin_service.py` — regras de negócio (dashboard aggregated, list users, toggle ban, grant premium, db stats)
+- `routers/admin.py` — endpoints HTTP com guard `require_super_admin`
+- Testes: `tests/test_admin.py` (9 tests)
+
+**Autorização**: role `super_admin` no user document. `require_super_admin(user)` levanta 403 caso contrário. Ana promovida via `mongosh`.
+
+**Endpoints `/api/admin/*` (todos gated)**:
+- `GET /dashboard` — total users, active_7d, new_7d/30d, premium_now, conversion_rate, deleted, revenue por currency, últimos eventos de auditoria
+- `GET /users?skip=&limit=&search=` — paginação + busca por email/nome; sem `password_hash`
+- `POST /users/{id}/ban` `{banned: bool}` — banir/reativar
+- `POST /users/{id}/grant-premium` `{days: int}` — conceder premium com data estendida (audit log)
+- `GET /audit?event_type=&limit=` — todos os eventos + filtro
+- `GET /transactions?limit=` — histórico Stripe completo
+- `GET /db-stats` — count/size/storage/indexes por coleção
+
+**Tela mobile** `/admin.tsx` (5 abas):
+- **Dashboard**: 6 métrica cards + revenue + últimas auditorias
+- **Usuários**: search bar + lista com badges (ADMIN/💎/BAN) + botões grant premium/ban
+- **Transações**: histórico Stripe com status colorido (paid/expired/created)
+- **Auditoria**: eventos globais com IP e severity
+- **DB**: coleções ordenadas por count com número de índices
+
+CTA "Painel Super Admin" no card Segurança do Perfil (só aparece para role=super_admin).
+
+## Fase 5 – DB Otimizado (v1.6)
+
+Novos índices compostos adicionados no startup:
+- `users`: `premium_expires_at` (sparse), `deletion_scheduled_at` (sparse), `role` (sparse), `banned` (sparse)
+- `payment_transactions`: `(user_id, created_at)`, `status`, `session_id` (unique)
+- `posts`: `(kind, created_at)`, `user_id`
+- `comments`: `(post_id, created_at)`
+- `shares`: `token` (unique), `user_id`
+- `audit_logs`: `(user_id, timestamp)`, `event_type`, `timestamp`
+
+Endpoint `/api/admin/db-stats` documenta em tempo real todas as coleções, seus tamanhos e índices.
+
+## Módulo 22 – Notificações Locais (v1.6)
+
+Instalado: `expo-notifications` + `expo-haptics`.
+
+Tela `/notifications-settings.tsx`:
+- 4 lembretes pré-configurados: 💧 Água (10h diário), 🍽️ Refeições (13h diário), ⚖️ Peso (segunda 8h), 😴 Sono (22h diário)
+- Toggle individual + persistência em AsyncStorage
+- Botão "Enviar notificação de teste"
+- Botão "Cancelar todos os lembretes"
+- Solicitação de permissão contextual + fallback para Settings se negada
+- Web-safe (toggles salvos mas notificações reais só em build nativo)
+
+**Push remoto e canais SMS/WhatsApp/Email não implementados** — requer chaves externas (Resend/Twilio) e Emergent Push Key só funciona após deploy real.
+
+## Fase 6 – UX Premium (v1.6 - parcial)
+
+- Utility `src/utils/haptic.ts` com API declarativa: `haptic.tap()`, `.select()`, `.success()`, `.warn()`, `.error()`. Web-safe (no-op).
+- Aplicado em CTAs principais da Home (Scanner IA, Coach IA) e toggles de lembretes.
+- **Micro-animações com Reanimated ficam para próxima iteração** — nível base já premium.
+
+## Sumário de testes (v1.6)
+- **48/48 pytest passando**: 13 backend base + 9 M16-20 + 9 LGPD + 9 Admin + 8 outros.
+- Zero regressão desde v1.0.
+

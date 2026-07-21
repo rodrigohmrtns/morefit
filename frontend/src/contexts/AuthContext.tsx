@@ -27,6 +27,8 @@ export type User = {
   is_premium?: boolean;
   premium_expires_at?: string | null;
   subscription_tier?: 'free' | 'premium';
+  role?: 'super_admin' | 'admin' | 'user';
+  banned?: boolean;
 };
 
 type Ctx = {

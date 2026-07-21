@@ -126,6 +126,22 @@ export default function Profile() {
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </View>
           </Pressable>
+          <Pressable onPress={() => router.push('/notifications-settings')} testID="profile-notifications-cta">
+            <View style={[s.row, s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name="notifications" size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>Lembretes & Notificações</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </View>
+          </Pressable>
+          {user?.role === 'super_admin' && (
+            <Pressable onPress={() => router.push('/admin')} testID="profile-admin-cta">
+              <View style={[s.row, s.rowBorder]}>
+                <View style={[s.rowIcon, { backgroundColor: colors.brandDark }]}><Ionicons name="ribbon" size={18} color={colors.brandPrimary} /></View>
+                <Text style={s.rowLabel}>Painel Super Admin</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </View>
+            </Pressable>
+          )}
           <SecurityRow colors={colors} icon="finger-print" label="Biometria" value="Em breve" />
           <SecurityRow colors={colors} icon="shield-checkmark" label="Autenticação 2FA" value="Em breve" border={false} />
         </View>

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { haptic } from '@/src/utils/haptic';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
 type Summary = {
@@ -217,14 +218,14 @@ export default function Home() {
 
         {/* AI CTA */}
         <View style={s.ctaRow}>
-          <Pressable style={s.aiCta} onPress={() => router.push(user?.is_premium ? '/scan' : '/paywall')} testID="home-ai-scan-cta">
+          <Pressable style={s.aiCta} onPress={() => { haptic.tap(); router.push(user?.is_premium ? '/scan' : '/paywall'); }} testID="home-ai-scan-cta">
             <View style={s.aiIcon}><Ionicons name={user?.is_premium ? 'sparkles' : 'lock-closed'} size={22} color={colors.brandDark} /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.aiTitle}>Escanear com IA {!user?.is_premium && '🔒'}</Text>
               <Text style={s.aiSub}>Foto → macros em segundos</Text>
             </View>
           </Pressable>
-          <Pressable style={s.aiCta2} onPress={() => router.push(user?.is_premium ? '/coach' : '/paywall')} testID="home-ai-coach-cta">
+          <Pressable style={s.aiCta2} onPress={() => { haptic.tap(); router.push(user?.is_premium ? '/coach' : '/paywall'); }} testID="home-ai-coach-cta">
             <View style={s.aiIcon2}><Ionicons name={user?.is_premium ? 'chatbubbles' : 'lock-closed'} size={22} color={colors.brandPrimary} /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.aiTitle2}>Coach IA {!user?.is_premium && '🔒'}</Text>
