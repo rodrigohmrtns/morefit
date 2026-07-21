@@ -386,3 +386,102 @@ agent_communication:
       Cobertura de testes M16-20: continua 17/17 passando (backend, tests atualizados quando removi require_premium indireto).
       Aguardando feedback do user para iniciar Fase 2 (Mercado Pago) ou pular para Fase 3 (Segurança/LGPD).
 
+
+# ==================== Fase 3: Segurança & LGPD (v1.5) ====================
+
+backend:
+  - task: "Reestruturação Clean Arch (core/routers/services/repositories/middleware)"
+    implemented: true
+    working: true
+    file: "backend/{core,routers,services,repositories,middleware}/"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Extraído config, database, security, utils para core/. server.py legado ainda existe mas importa de core/. Novos módulos seguem separação HTTP router → application service → data repository."
+  - task: "Rate limiting (slowapi via dependency)"
+    implemented: true
+    working: true
+    file: "backend/middleware/security.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Approach com Depends() em vez de @limiter.limit decorator (evita conflitos com from __future__ import annotations). Aplicado em /auth/login (10/min), /auth/register (5/min), /billing/checkout (20/min)."
+  - task: "Security headers middleware"
+    implemented: true
+    working: true
+    file: "backend/middleware/security.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "5 headers aplicados: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, HSTS, Permissions-Policy. Validado via test."
+  - task: "Audit service + repository"
+    implemented: true
+    working: true
+    file: "backend/services/audit_service.py, backend/repositories/audit_repo.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Audit gravado automático em login (sucesso+falha), register, export, deletion_scheduled, deletion_cancelled. Metadados: user_id, ip, user_agent, timestamp, severity."
+  - task: "LGPD service (export + delete + cancel)"
+    implemented: true
+    working: true
+    file: "backend/services/lgpd_service.py, backend/routers/lgpd.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "5 endpoints: /lgpd/summary, /export (JSON), /delete-account (grace 30d), /cancel-deletion, /audit. USER_OWNED_COLLECTIONS documentado explicitamente. Password_hash nunca vaza no export."
+
+frontend:
+  - task: "Privacy screen (/privacy)"
+    implemented: true
+    working: true
+    file: "frontend/app/privacy.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Screen com hero LGPD, aviso quando conta scheduled for deletion + botão cancelar, stats (total + categorias), botões export/delete, detalhamento por categoria, histórico de auditoria com ícones por tipo, seção legal. CTA no Perfil (card Segurança)."
+
+tests:
+  - task: "LGPD test coverage"
+    implemented: true
+    working: true
+    file: "backend/tests/test_lgpd.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "9 tests cobrindo security headers, audit logs (login/failed_login), LGPD summary/export/delete/cancel, rate limiting. Zero regressão: 39/39 total (13 backend + 9 LGPD + 17 M16-20). Adicionei fixture premium_auth_headers em backend_test.py para gates."
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Fase 3 (Segurança & LGPD) entregue com Clean Arch light:
+      - Reestruturação: core/, routers/, services/, repositories/, middleware/
+      - Rate limiting via slowapi (dependency-based, evita conflito com from __future__ annotations)
+      - 5 security headers aplicados
+      - Audit trail automático em eventos sensíveis
+      - LGPD completo: export JSON, delete c/ grace period 30d, cancel, summary, audit
+      - Tela mobile Privacy funcionando (validada com screenshot)
+      - 39/39 pytest passando (0 regressões)
+      Próximas fases pendentes: Mercado Pago, Painel Super Admin, DB otimizado, UX Premium, Notificações.
+

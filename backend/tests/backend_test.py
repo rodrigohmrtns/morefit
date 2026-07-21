@@ -37,6 +37,30 @@ def auth_headers(user_ctx):
     return {"Authorization": f"Bearer {user_ctx['token']}"}
 
 
+@pytest.fixture
+def premium_auth_headers(user_ctx, auth_headers):
+    """Grant premium tier directly in DB for tests that hit gated endpoints."""
+    from datetime import datetime, timezone, timedelta
+    from pymongo import MongoClient
+    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    cli = MongoClient(mongo_url)
+    db = cli[os.environ.get("DB_NAME", "vitatracker")]
+    exp = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+    db.users.update_one(
+        {"email": user_ctx["email"]},
+        {"$set": {"subscription_tier": "premium", "premium_expires_at": exp,
+                  "premium_since": datetime.now(timezone.utc).isoformat(),
+                  "last_plan": "annual"}},
+    )
+    yield auth_headers
+    db.users.update_one(
+        {"email": user_ctx["email"]},
+        {"$unset": {"subscription_tier": "", "premium_expires_at": "",
+                    "premium_since": "", "last_plan": ""}},
+    )
+    cli.close()
+
+
 def _real_food_image_b64() -> str:
     """Generate JPEG bytes of a food-ish scene with real textures/edges/shadows."""
     img = Image.new("RGB", (512, 512), (255, 245, 220))
@@ -207,7 +231,8 @@ class TestDashboard:
 
 # ----- Meals/analyze (Gemini) -----
 class TestMealAnalyze:
-    def test_analyze_real_food_image(self, api_client, auth_headers):
+    def test_analyze_real_food_image(self, api_client, premium_auth_headers):
+        auth_headers = premium_auth_headers
         img_b64 = _real_food_image_b64()
         r = api_client.post(f"{API}/meals/analyze", headers=auth_headers,
                             json={"image_base64": img_b64, "meal_type": "lunch"},

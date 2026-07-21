@@ -229,3 +229,54 @@ Coleções: `payment_transactions` (histórico), `webhook_events` (log de evento
 
 Chave: `STRIPE_API_KEY=sk_test_emergent` (adicionada ao `/app/backend/.env`).
 
+
+## Fase 3 – Segurança & LGPD (v1.5)
+
+**Reestruturação Clean Arch (Opção C híbrida)**
+Nova estrutura em `/app/backend/`:
+```
+core/          ← config, database, security (JWT/bcrypt/current_user/require_premium), utils
+middleware/    ← security headers, rate limit (slowapi)
+services/      ← audit_service, lgpd_service (regras de negócio)
+repositories/  ← audit_repo (Repository Pattern)
+routers/       ← lgpd.py (endpoints HTTP)
+tests/         ← test_lgpd.py (9 tests)
+```
+Server.py (legado) foi mantido mas passa a importar de `core/*`. Novos módulos daqui em diante seguem esta separação.
+
+**Rate Limiting (slowapi via dependency injection):**
+- `/api/auth/login` — 10/minuto
+- `/api/auth/register` — 5/minuto
+- `/api/billing/checkout` — 20/minuto
+- Default global: 120/minuto por IP
+
+**Security Headers Middleware** (aplicado em todas as respostas):
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- Referrer-Policy: strict-origin-when-cross-origin
+- Strict-Transport-Security: max-age=31536000; includeSubDomains
+- Permissions-Policy: camera=(self), microphone=(self)
+
+**Audit Logs** (coleção `audit_logs` com índices):
+- Registrado automaticamente em: `auth.login`, `auth.login_failed`, `auth.register`, `lgpd.export`, `lgpd.deletion_scheduled`, `lgpd.deletion_cancelled`
+- Metadados: user_id, email, IP, user_agent, timestamp, severity (info|warn|error)
+
+**Endpoints LGPD (`/api/lgpd/*`)**:
+- `GET /summary` — contagem de registros por coleção + status de exclusão
+- `GET /export` — download JSON de TODOS os dados do usuário (12KB+ typical)
+- `POST /delete-account` — agenda exclusão em 30 dias (grace period configurável)
+- `POST /cancel-deletion` — cancela exclusão agendada (funciona mesmo se `current_user` bloqueia)
+- `GET /audit` — histórico de auditoria pessoal
+
+**Tela mobile** `/privacy.tsx`:
+- Hero "Seus direitos, seus dados" com escudo
+- Aviso vermelho quando conta agendada para exclusão + botão "Cancelar exclusão"
+- Stats totais (registros + categorias)
+- Botões Exportar / Excluir conta
+- Detalhamento por categoria com contagens
+- Histórico de auditoria (últimas 30 ações com ícones por tipo)
+- Seção legal sobre LGPD
+- CTA "Privacidade & LGPD" no card Segurança do Perfil
+
+**Coverage**: 9/9 testes LGPD passando + 39/39 total (sem regressão nas fases anteriores).
+

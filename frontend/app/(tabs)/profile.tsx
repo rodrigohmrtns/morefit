@@ -119,6 +119,13 @@ export default function Profile() {
 
         <Text style={s.sectionLabel}>Segurança</Text>
         <View style={s.card}>
+          <Pressable onPress={() => router.push('/privacy')} testID="profile-privacy-cta">
+            <View style={[s.row, s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name="shield-checkmark" size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>Privacidade & LGPD</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </View>
+          </Pressable>
           <SecurityRow colors={colors} icon="finger-print" label="Biometria" value="Em breve" />
           <SecurityRow colors={colors} icon="shield-checkmark" label="Autenticação 2FA" value="Em breve" border={false} />
         </View>

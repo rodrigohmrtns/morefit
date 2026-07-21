@@ -1,6 +1,9 @@
 """VitaTracker Backend – Health, Weight & Wellness Platform.
 
 FastAPI + MongoDB + Emergent (Google Auth & LLM/Gemini).
+
+NOTE: Legacy monolith kept for existing endpoints. New modules follow a
+router/service/repository split under `/app/backend/{routers,services,repositories,core,middleware}/`.
 """
 from __future__ import annotations
 
@@ -18,10 +21,24 @@ import bcrypt
 import httpx
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.cors import CORSMiddleware
+
+# --- Shared core / new-module routers ---
+from core.config import settings as core_settings  # noqa: F401 — ensures env loaded once
+from middleware.security import (
+    SecurityHeadersMiddleware,
+    auth_rate_limit,
+    billing_rate_limit,
+    limiter,
+    register_rate_limit,
+)
+from routers.lgpd import router as lgpd_router
+from services.audit_service import audit_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -37,8 +54,13 @@ STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-app = FastAPI(title="VitaTracker API", version="1.0.0")
+app = FastAPI(title="VitaTracker API", version="1.4.0")
 api = APIRouter(prefix="/api")
+
+# Rate limiting + security headers
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log = logging.getLogger("vitatracker")
@@ -241,6 +263,10 @@ async def startup() -> None:
     await db.company_members.create_index("user_id")
     await db.campaigns.create_index([("company_id", 1), ("start_date", -1)])
     await db.campaign_participations.create_index([("campaign_id", 1), ("user_id", 1)], unique=True)
+    # Fase 3 — Segurança & LGPD
+    await db.audit_logs.create_index([("user_id", 1), ("timestamp", -1)])
+    await db.audit_logs.create_index("event_type")
+    await db.audit_logs.create_index("timestamp")
     log.info("VitaTracker DB indexes ready")
 
 
@@ -285,7 +311,7 @@ async def root():
 
 
 @api.post("/auth/register")
-async def register(payload: RegisterIn):
+async def register(payload: RegisterIn, request: Request, _rl: None = Depends(register_rate_limit)):
     existing = await db.users.find_one({"email": payload.email.lower()})
     if existing:
         raise HTTPException(400, "E-mail já cadastrado")
@@ -307,14 +333,22 @@ async def register(payload: RegisterIn):
         "onboarded": False,
     }
     await db.users.insert_one(user)
+    await audit_service.log_event(event_type="auth.register", user=user, request=request)
     return {"token": make_jwt(user["user_id"]), "user": _public_user(user)}
 
 
 @api.post("/auth/login")
-async def login(payload: LoginIn):
+async def login(payload: LoginIn, request: Request, _rl: None = Depends(auth_rate_limit)):
     user = await db.users.find_one({"email": payload.email.lower()})
     if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):
+        await audit_service.log_event(
+            event_type="auth.login_failed", request=request,
+            metadata={"email": payload.email.lower()}, severity="warn",
+        )
         raise HTTPException(401, "Credenciais inválidas")
+    if user.get("deleted_at"):
+        raise HTTPException(403, "Conta excluída")
+    await audit_service.log_event(event_type="auth.login", user=user, request=request)
     return {"token": make_jwt(user["user_id"]), "user": _public_user(user)}
 
 
@@ -2295,7 +2329,9 @@ class CheckoutIn(BaseModel):
 
 
 @api.post("/billing/checkout")
-async def billing_checkout(payload: CheckoutIn, request: Request, user: dict = Depends(current_user)):
+async def billing_checkout(payload: CheckoutIn, request: Request,
+                           user: dict = Depends(current_user),
+                           _rl: None = Depends(billing_rate_limit)):
     """Create a Stripe checkout session. Payment grants premium access for `days`."""
     if not STRIPE_API_KEY:
         raise HTTPException(500, "Stripe não configurado")
@@ -2501,6 +2537,8 @@ async def billing_plans():
     return {"plans": [{"id": k, **v} for k, v in PLAN_CATALOG.items()]}
 
 
+# LGPD router mounted under /api via composition (Clean Arch — new modules only)
+api.include_router(lgpd_router)
 app.include_router(api)
 
 app.add_middleware(
