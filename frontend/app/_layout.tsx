@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { LogBox, StatusBar, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import Toast from 'react-native-toast-message';
 
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { CommandPaletteFab, CommandPaletteProvider } from '@/src/command-palette';
@@ -11,6 +13,7 @@ import { LocaleProvider } from '@/src/i18n';
 import { QueryProvider } from '@/src/query';
 import { ThemeProvider, useTheme } from '@/src/theme';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
+import { toastConfig } from '@/src/components/toast';
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -26,6 +29,7 @@ function ThemedStack() {
       />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />
       {user ? <CommandPaletteFab /> : null}
+      <Toast config={toastConfig} topOffset={60} />
     </View>
   );
 }
@@ -46,9 +50,11 @@ export default function RootLayout() {
           <LocaleProvider>
             <QueryProvider>
               <AuthProvider>
-                <CommandPaletteProvider>
-                  <ThemedStack />
-                </CommandPaletteProvider>
+                <BottomSheetModalProvider>
+                  <CommandPaletteProvider>
+                    <ThemedStack />
+                  </CommandPaletteProvider>
+                </BottomSheetModalProvider>
               </AuthProvider>
             </QueryProvider>
           </LocaleProvider>

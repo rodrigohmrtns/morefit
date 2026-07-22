@@ -1,5 +1,5 @@
 /**
- * Accessibility helpers — WCAG 2.1 AA baseline for VitaTracker.
+ * Accessibility helpers — WCAG 2.1 AA baseline for MoreFit.
  *
  * Usage:
  *   <Pressable {...a11yButton(t('paywall.subscribeCta'))}>…</Pressable>

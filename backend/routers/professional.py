@@ -115,7 +115,7 @@ async def build_public_report_html(token: str) -> HTMLResponse:
     <tbody>{rows(data['sleeps'], ['date','hours','quality'])}</tbody></table>""" if show_sleep else ""
 
     html = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<title>Relatório VitaTracker — {u.get('name', 'Usuário')}</title>
+<title>Relatório MoreFit — {u.get('name', 'Usuário')}</title>
 <style>
 :root {{ color-scheme: light; }}
 body {{ font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:#0F1110; background:#F5F6F4; margin:0; padding:24px; }}
@@ -146,7 +146,7 @@ th {{ font-weight:600; color:#83877F; text-transform:uppercase; letter-spacing:.
   {section_meals}
   {section_exercises}
   {section_sleep}
-  <div class="foot">Relatório gerado por VitaTracker — Este documento contém dados sensíveis. Compartilhamento válido por 30 dias.</div>
+  <div class="foot">Relatório gerado por MoreFit — Este documento contém dados sensíveis. Compartilhamento válido por 30 dias.</div>
 </div></body></html>"""
     return HTMLResponse(html)
 
@@ -183,7 +183,7 @@ async def report_pdf(user: dict = Depends(require_premium), type: Optional[str] 
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 18)
     pdf.set_text_color(38, 48, 26)
-    pdf.cell(0, 10, f"VitaTracker - Relatorio ({ptype_label})", ln=True)
+    pdf.cell(0, 10, f"MoreFit - Relatorio ({ptype_label})", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(80, 80, 80)
     pdf.cell(0, 6, f"Paciente: {u.get('name','')} - {u.get('email','')}", ln=True)
@@ -236,5 +236,5 @@ async def report_pdf(user: dict = Depends(require_premium), type: Optional[str] 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="vitatracker-{ptype}-{u.get("name","user").replace(" ", "_")}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="morefit-{ptype}-{u.get("name","user").replace(" ", "_")}.pdf"'},
     )

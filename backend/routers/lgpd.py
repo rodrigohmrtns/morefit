@@ -51,7 +51,7 @@ async def lgpd_export(request: Request, user: dict = Depends(current_user)):
         metadata={"total_records": sum(len(v) if isinstance(v, list) else 0 for v in payload.values())},
     )
     body = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
-    filename = f"vitatracker-lgpd-{user.get('email','user').replace('@','_at_')}.json"
+    filename = f"morefit-lgpd-{user.get('email','user').replace('@','_at_')}.json"
     return Response(
         content=body,
         media_type="application/json",

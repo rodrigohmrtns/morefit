@@ -8,6 +8,9 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { api } from '@/src/api/client';
 import { useLocale } from '@/src/i18n';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
+import { ThemedRefreshControl, usePullRefresh } from '@/src/components/refresh';
+import { Skeleton } from '@/src/components/skeleton';
+import { EmptyState } from '@/src/components/empty-state';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 type Metric = 'weight' | 'bmi' | 'body_fat' | 'muscle' | 'water_pct' | 'waist' | 'hip'
@@ -52,6 +55,7 @@ export default function Progress() {
   const [data, setData] = useState<Series | null>(null);
   const [compare, setCompare] = useState<Record<string, { date: string; value: number }[]> | null>(null);
   const [showCompare, setShowCompare] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -62,9 +66,11 @@ export default function Progress() {
         setCompare(c.metrics);
       }
     } catch (e) { console.log(e); }
+    finally { setLoading(false); }
   }, [metric, period, showCompare]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  const { refreshing, onRefresh } = usePullRefresh(load);
 
   const currentMeta = METRICS.find(m => m.key === metric)!;
   const currentLabel = t(`progress.metrics.${metric}`);
@@ -84,7 +90,11 @@ export default function Progress() {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<ThemedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Metric selector – horizontal chip row */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.metricsRow} testID="progress-metrics-row">
           {METRICS.map(m => (
@@ -139,11 +149,19 @@ export default function Progress() {
         {/* Chart */}
         <View style={s.card}>
           <Text style={s.cardTitle}>{t('progress.evolution')}</Text>
-          {!data || data.series.length < 2 ? (
-            <View style={s.emptyChart}>
-              <Ionicons name="analytics-outline" size={44} color={colors.muted} />
-              <Text style={s.emptyTxt}>{t('progress.emptyChart')}</Text>
+          {loading && !data ? (
+            <View style={{ paddingVertical: spacing.md, gap: spacing.sm }}>
+              <Skeleton height={140} radius={12} />
             </View>
+          ) : !data || data.series.length < 2 ? (
+            <EmptyState
+              variant="weight"
+              title={t('progress.emptyChart')}
+              body="Registre pelo menos 2 medições para visualizar sua evolução."
+              cta={t('progress.addLog') || 'Adicionar medição'}
+              onPressCta={() => router.push('/weight-log')}
+              compact
+            />
           ) : (
             <Chart colors={colors} series={data.series} predicted={data.stats.predicted_30d ?? undefined} />
           )}

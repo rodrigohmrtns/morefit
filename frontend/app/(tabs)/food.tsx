@@ -7,6 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '@/src/api/client';
 import { useLocale } from '@/src/i18n';
 import { radius, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
+import { ThemedRefreshControl, usePullRefresh } from '@/src/components/refresh';
+import { SkeletonList } from '@/src/components/skeleton';
+import { toast } from '@/src/components/toast';
 
 type Meal = {
   id: string; name: string; meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -26,14 +29,25 @@ export default function FoodDiary() {
   const { t } = useLocale();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try { const r = await api<{ items: Meal[] }>('/meals'); setMeals(r.items || []); } catch {}
+    finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  const { refreshing, onRefresh } = usePullRefresh(load);
 
   const total = meals.reduce((s, m) => s + (m.calories || 0), 0);
-  const del = async (id: string) => { try { await api(`/meals/${id}`, { method: 'DELETE' }); load(); } catch {} };
+  const del = async (id: string) => {
+    try {
+      await api(`/meals/${id}`, { method: 'DELETE' });
+      toast.success('Refeição removida');
+      load();
+    } catch {
+      toast.error('Erro ao remover');
+    }
+  };
 
   return (
     <View style={s.root} testID="food-screen">
@@ -55,7 +69,14 @@ export default function FoodDiary() {
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={s.content}>
+      <ScrollView
+        contentContainerStyle={s.content}
+        refreshControl={<ThemedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {loading && meals.length === 0 ? (
+          <SkeletonList count={4} />
+        ) : (
+        <>
         {CATS.map(cat => {
           const items = meals.filter(m => m.meal_type === cat.key);
           const cal = items.reduce((sum, m) => sum + m.calories, 0);
@@ -102,6 +123,8 @@ export default function FoodDiary() {
             </View>
           );
         })}
+        </>
+        )}
         <View style={{ height: spacing.xxxl }} />
       </ScrollView>
     </View>

@@ -1,4 +1,4 @@
-"""Shared dependencies for VitaTracker routers.
+"""Shared dependencies for MoreFit routers.
 
 Everything that is imported by more than one router lives here so that
 individual routers stay focused on their own domain.

@@ -146,7 +146,7 @@ export default function NotificationsSettingsScreen() {
     if (Platform.OS === 'web') { Alert.alert('Web preview', 'Teste de notificação disponível apenas no dispositivo real.'); return; }
     if (!(await ensurePermission())) return;
     await Notifications.scheduleNotificationAsync({
-      content: { title: '🎉 Teste do VitaTracker', body: 'Seus lembretes estão funcionando!', sound: true },
+      content: { title: '🎉 Teste do MoreFit', body: 'Seus lembretes estão funcionando!', sound: true },
       trigger: null,
     });
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

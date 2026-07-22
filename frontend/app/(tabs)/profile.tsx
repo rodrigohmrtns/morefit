@@ -146,6 +146,12 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ marginLeft: 'auto' }} />
         </Pressable>
 
+        <Pressable style={s.linkRow} onPress={() => router.push('/timeline')} testID="profile-timeline-link">
+          <Ionicons name="calendar" size={20} color={colors.brandDark} />
+          <Text style={s.linkTxt}>{t('timeline.title')}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ marginLeft: 'auto' }} />
+        </Pressable>
+
         <Pressable
           style={[s.premiumCta, user?.is_premium && s.premiumCtaActive]}
           onPress={() => router.push('/paywall')}
@@ -213,7 +219,7 @@ export default function Profile() {
           <Text style={s.logoutTxt}>Sair da conta</Text>
         </Pressable>
 
-        <Text style={s.footer}>VitaTracker v1.1 • Feito com 💚 no Brasil</Text>
+        <Text style={s.footer}>MoreFit v1.1 • Feito com 💚 no Brasil</Text>
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </View>

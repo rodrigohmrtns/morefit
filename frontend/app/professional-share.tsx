@@ -111,7 +111,7 @@ export default function ProfessionalShareScreen() {
         const dlUrl = (window as any).URL.createObjectURL(blob);
         const a = (window as any).document.createElement('a');
         a.href = dlUrl;
-        a.download = `vitatracker-${type}.pdf`;
+        a.download = `morefit-${type}.pdf`;
         a.click();
         setTimeout(() => (window as any).URL.revokeObjectURL(dlUrl), 500);
       } else {
@@ -119,7 +119,7 @@ export default function ProfessionalShareScreen() {
         const FileSystem = await import('expo-file-system');
         const Sharing = await import('expo-sharing');
         const b64 = arrayBufferToBase64(await res.arrayBuffer());
-        const path = FileSystem.cacheDirectory + `vitatracker-${type}.pdf`;
+        const path = FileSystem.cacheDirectory + `morefit-${type}.pdf`;
         await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
         if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path);
         else Alert.alert('PDF salvo', path);

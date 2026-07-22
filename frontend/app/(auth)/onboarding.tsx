@@ -37,7 +37,7 @@ export default function Onboarding() {
           <View style={s.logoBadge}>
             <Ionicons name="leaf" size={20} color={colors.brandDark} />
           </View>
-          <Text style={s.brand}>VitaTracker</Text>
+          <Text style={s.brand}>MoreFit</Text>
         </View>
 
         <View style={s.hero}>

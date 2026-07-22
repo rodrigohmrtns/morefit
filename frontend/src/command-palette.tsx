@@ -84,6 +84,7 @@ const REGISTRY: Command[] = [
   { id: 'nav.community', labelKey: 'home.community', icon: 'people', group: 'nav', route: '/community' },
   { id: 'nav.companies', labelKey: 'home.companies', icon: 'business', group: 'nav', route: '/companies' },
   { id: 'nav.share', labelKey: 'home.shareWithPros', icon: 'document-text', group: 'nav', route: '/professional-share' },
+  { id: 'nav.timeline', labelKey: 'timeline.title', icon: 'calendar', group: 'nav', route: '/timeline' },
   { id: 'nav.privacy', labelKey: 'privacy.title', icon: 'lock-closed', group: 'settings', route: '/privacy' },
   { id: 'nav.wearables', labelKey: 'wearables.title', icon: 'watch', group: 'settings', route: '/wearables',
     keywords: ['watch', 'relogio', 'healthkit', 'google fit', 'health connect'] },

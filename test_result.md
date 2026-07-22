@@ -668,3 +668,36 @@ agent_communication:
       
       Zero regressão nos testes existentes (48/48 backend passando).
       Solicito o testing_agent para validar o novo endpoint /api/coach/recipes (premium gate + Gemini payload).
+
+    -agent: "main"
+    -message: |
+      Sessão MoreFit — Rebranding + UX Premium + Timeline entregues:
+
+      1. **Rebranding "VitaTracker" → "MoreFit"** (P0)
+         - `app.json`: name, slug, scheme atualizados
+         - Todas as strings visíveis em frontend (auth, tabs, paywall, notifications, i18n)
+         - Backend server.py (título FastAPI, log namespace), routers (professional, companies, lgpd, coach, billing)
+         - `DB_NAME` mantido como "vitatracker" internamente para preservar dados existentes (transparente ao usuário)
+         - Screenshot valida: título HTML = "MoreFit", logo "MoreFit" no onboarding
+
+      2. **UX Premium** (P0)
+         - `src/components/skeleton.tsx`: Skeleton, SkeletonCard, SkeletonList, SkeletonHeroStats (reanimated shimmer)
+         - `src/components/empty-state.tsx`: EmptyState com 10 ilustrações SVG temáticas (meals/weight/water/exercise/sleep/community/search/photos/timeline/generic)
+         - `src/components/toast.tsx`: Toast globalizado com react-native-toast-message (success/error/info/warning temáticos)
+         - `src/components/bottom-sheet.tsx`: ThemedBottomSheet + SheetAction (via @gorhom/bottom-sheet)
+         - `src/components/refresh.tsx`: ThemedRefreshControl + usePullRefresh hook
+         - `_layout.tsx`: BottomSheetModalProvider + Toast root injetados
+         - Home: SkeletonHeroStats no loading inicial, ThemedRefreshControl, toast em add-water optimistic, FAB "+" abre bottom sheet com 6 quick actions
+         - Progress + Food tabs: pull-to-refresh, skeleton loading, empty state ilustrado, toasts em delete
+
+      3. **Timeline** (P0) — NEW route `/timeline`
+         - Backend `routers/timeline.py`: `GET /api/timeline/month?ym=YYYY-MM` (dots + totals) e `GET /api/timeline/day?date=YYYY-MM-DD` (eventos unificados)
+         - Frontend `app/timeline.tsx`: calendário mensal com dots coloridos por atividade, dia selecionável, feed vertical de eventos com nós temáticos por tipo (peso/refeição/água/exercício/sono/humor/foto/jejum)
+         - Botão "Hoje" para pular pro dia atual, navegação ‹ mês ›
+         - Entry points: Perfil (linha nova), Command palette (nav.timeline)
+
+      4. **Testes**
+         - Novos: `backend/tests/test_timeline.py` (4 testes: month empty, day empty, with logs, auth required)
+         - Full suite: **69/69 passing** (48 antigos + 4 recipes + 4 admin + 4 wearables/widgets + 4 timeline + 5 modules 16-20 + ...)
+
+      Screenshot validado: Home + Timeline + Bottom Sheet + Toast funcionais. Solicito testing_agent para validar timeline (backend + frontend E2E).

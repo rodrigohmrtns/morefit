@@ -19,7 +19,7 @@ from deps import (
 from middleware.security import billing_rate_limit
 
 router = APIRouter(tags=["billing"])
-log = logging.getLogger("vitatracker.billing")
+log = logging.getLogger("morefit.billing")
 
 
 PLAN_CATALOG = {

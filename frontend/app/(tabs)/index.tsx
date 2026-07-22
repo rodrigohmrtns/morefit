@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing,
   FadeInDown,
 } from 'react-native-reanimated';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -16,6 +17,10 @@ import { useLocale } from '@/src/i18n';
 import { useOnline } from '@/src/hooks/use-online';
 import { haptic } from '@/src/utils/haptic';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
+import { SkeletonHeroStats, SkeletonCard, Skeleton } from '@/src/components/skeleton';
+import { ThemedRefreshControl } from '@/src/components/refresh';
+import { toast } from '@/src/components/toast';
+import { ThemedBottomSheet, SheetAction } from '@/src/components/bottom-sheet';
 
 type Summary = {
   date: string;
@@ -104,6 +109,10 @@ export default function Home() {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(['dashboard', 'summary'], ctx.prev);
+      toast.error('Ops', 'Não foi possível salvar. Tentando novamente...');
+    },
+    onSuccess: (_r, amount_ml) => {
+      toast.success(`+${amount_ml} ml`, t('home.hydration'));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] }),
   });
@@ -120,6 +129,15 @@ export default function Home() {
     );
   }, [pulse]);
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+
+  // Quick-actions bottom sheet ref
+  const quickSheetRef = useRef<BottomSheetModal>(null);
+  const openQuickActions = useCallback(() => {
+    haptic.tap();
+    quickSheetRef.current?.present();
+  }, []);
+
+  const initialLoading = dashQuery.isLoading && !data;
 
   return (
     <View style={s.root} testID="home-screen">
@@ -148,8 +166,25 @@ export default function Home() {
       <ScrollView
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandPrimary} />}
+        refreshControl={<ThemedRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {initialLoading ? (
+          <>
+            <SkeletonHeroStats />
+            <View style={{ height: spacing.md }} />
+            <SkeletonCard />
+            <View style={{ height: spacing.md }} />
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}><Skeleton height={72} radius={12} /></View>
+              <View style={{ flex: 1 }}><Skeleton height={72} radius={12} /></View>
+              <View style={{ flex: 1 }}><Skeleton height={72} radius={12} /></View>
+            </View>
+            <View style={{ height: spacing.md }} />
+            <SkeletonCard />
+            <View style={{ height: spacing.xxl }} />
+          </>
+        ) : (
+        <>
         {/* Motivational quote */}
         {!!quote && (
           <View style={s.quoteBox} testID="home-quote">
@@ -361,17 +396,79 @@ export default function Home() {
               <Ionicons name="add" size={28} color={colors.brandDark} />
               <Text style={s.photoAddTxt}>{t('food.addMore').split(' ')[0]}</Text>
             </Pressable>
-            {(data?.photos ?? []).map(p => (
-              <View key={p.id} style={s.photoItem}>
-                <View style={s.photoPh}><Ionicons name="image" size={22} color={colors.muted} /></View>
-                <Text style={s.photoDate}>{formatShort(p.date)}</Text>
+            {(data?.photos ?? []).length === 0 ? (
+              <View style={{ flex: 1, paddingLeft: spacing.md, justifyContent: 'center' }}>
+                <Text style={{ ...typography.caption, color: colors.muted }}>
+                  {t('home.progressPhotos')} — {t('home.viewAll')}
+                </Text>
               </View>
-            ))}
+            ) : (
+              (data?.photos ?? []).map(p => (
+                <View key={p.id} style={s.photoItem}>
+                  <View style={s.photoPh}><Ionicons name="image" size={22} color={colors.muted} /></View>
+                  <Text style={s.photoDate}>{formatShort(p.date)}</Text>
+                </View>
+              ))
+            )}
           </ScrollView>
         </View>
 
         <View style={{ height: spacing.xxl }} />
+        </>
+        )}
       </ScrollView>
+
+      {/* Floating quick-action FAB — opens bottom sheet */}
+      {!initialLoading && (
+        <Pressable
+          onPress={openQuickActions}
+          style={[s.fab, { backgroundColor: colors.brandPrimary }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ações rápidas"
+          testID="home-fab-quick"
+        >
+          <Ionicons name="add" size={28} color={colors.brandDark} />
+        </Pressable>
+      )}
+
+      <ThemedBottomSheet ref={quickSheetRef} snapPoints={['55%']} title="Registrar rápido">
+        <SheetAction
+          icon="droplet"
+          label={t('palette.addWater')}
+          subtitle="+250 ml"
+          onPress={() => { quickSheetRef.current?.dismiss(); addWater(250); }}
+        />
+        <SheetAction
+          icon="coffee"
+          label={t('palette.addMeal')}
+          subtitle="Adicionar alimento"
+          onPress={() => { quickSheetRef.current?.dismiss(); router.push('/food-add'); }}
+        />
+        <SheetAction
+          icon="activity"
+          label={t('palette.addWeight')}
+          subtitle="Atualizar peso atual"
+          onPress={() => { quickSheetRef.current?.dismiss(); router.push('/weight-log'); }}
+        />
+        <SheetAction
+          icon="zap"
+          label={t('palette.addExercise')}
+          subtitle="Registrar treino"
+          onPress={() => { quickSheetRef.current?.dismiss(); router.push('/exercise-log'); }}
+        />
+        <SheetAction
+          icon="moon"
+          label={t('palette.addSleep')}
+          subtitle="Registrar horas de sono"
+          onPress={() => { quickSheetRef.current?.dismiss(); router.push('/sleep-log'); }}
+        />
+        <SheetAction
+          icon="camera"
+          label={t('palette.addPhoto')}
+          subtitle="Adicionar nova foto"
+          onPress={() => { quickSheetRef.current?.dismiss(); router.push('/photos'); }}
+        />
+      </ThemedBottomSheet>
     </View>
   );
 }
@@ -546,4 +643,19 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   photoDate: { ...typography.small, color: colors.muted, textAlign: 'center' },
   offlineBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(244,162,97,0.15)', paddingHorizontal: spacing.xl, paddingVertical: 6, borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(244,162,97,0.3)' },
   offlineTxt: { ...typography.small, color: colors.warning, fontWeight: '700' },
+  fab: {
+    position: 'absolute',
+    right: spacing.xl,
+    bottom: spacing.xxxl,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
 });

@@ -1,4 +1,4 @@
-"""VitaTracker — tests for the new wearables + widgets routers (P3 + P4.4)."""
+"""MoreFit — tests for the new wearables + widgets routers (P3 + P4.4)."""
 from __future__ import annotations
 
 import os

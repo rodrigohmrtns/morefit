@@ -1,4 +1,4 @@
-"""Tests for VitaTracker Modules 16-20: Gamification, Community, Professional PDF sharing."""
+"""Tests for MoreFit Modules 16-20: Gamification, Community, Professional PDF sharing."""
 import os
 import pytest
 import requests

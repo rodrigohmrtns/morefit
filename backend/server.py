@@ -1,4 +1,4 @@
-"""VitaTracker Backend — thin composition layer.
+"""MoreFit Backend — thin composition layer.
 
 All business logic lives in domain routers under `/app/backend/routers/*.py`.
 This module wires them together, configures middlewares, and manages startup.
@@ -36,6 +36,7 @@ from routers.companies import router as companies_router
 from routers.billing import router as billing_router
 from routers.wearables import router as wearables_router
 from routers.widgets import router as widgets_router
+from routers.timeline import router as timeline_router
 
 # Pre-existing sub-app routers (already modularized)
 from routers.lgpd import router as lgpd_router
@@ -48,9 +49,9 @@ from routers.professional import build_public_report_html
 # App setup
 # ---------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-log = logging.getLogger("vitatracker")
+log = logging.getLogger("morefit")
 
-app = FastAPI(title="VitaTracker API", version="1.5.0")
+app = FastAPI(title="MoreFit API", version="1.5.0")
 
 # Rate limiting + security headers
 app.state.limiter = limiter
@@ -66,7 +67,7 @@ api = APIRouter(prefix="/api")
 
 @api.get("/")
 async def root():
-    return {"app": "VitaTracker", "status": "ok"}
+    return {"app": "MoreFit", "status": "ok"}
 
 
 api.include_router(auth_router)
@@ -81,6 +82,7 @@ api.include_router(companies_router)
 api.include_router(billing_router)
 api.include_router(wearables_router)
 api.include_router(widgets_router)
+api.include_router(timeline_router)
 api.include_router(lgpd_router)
 api.include_router(admin_router)
 
@@ -146,12 +148,12 @@ async def startup() -> None:
     await db.widget_tokens.create_index("token", unique=True)
     await db.widget_tokens.create_index("user_id", unique=True)
 
-    log.info("VitaTracker started — indexes ready.")
+    log.info("MoreFit started — indexes ready.")
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
-    log.info("VitaTracker shutting down.")
+    log.info("MoreFit shutting down.")
 
 
 # ---------------------------------------------------------------------------

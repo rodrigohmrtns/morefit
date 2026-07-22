@@ -89,7 +89,7 @@ export default function PaywallScreen() {
           <View style={s.crownWrap}>
             <Ionicons name="diamond" size={30} color={colors.brandDark} />
           </View>
-          <Text style={s.heroTitle}>VitaTracker Premium</Text>
+          <Text style={s.heroTitle}>MoreFit Premium</Text>
           <Text style={s.heroSub}>Desbloqueie IA avançada, análises profundas e ferramentas exclusivas para atingir seus objetivos.</Text>
         </View>
 

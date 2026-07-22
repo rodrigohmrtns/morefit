@@ -164,13 +164,13 @@ export default function CompanyDetailScreen() {
         const blob = await res.blob();
         const dlUrl = (window as any).URL.createObjectURL(blob);
         const a = (window as any).document.createElement('a');
-        a.href = dlUrl; a.download = `vitatracker-corporate-${company?.name}.pdf`; a.click();
+        a.href = dlUrl; a.download = `morefit-corporate-${company?.name}.pdf`; a.click();
         setTimeout(() => (window as any).URL.revokeObjectURL(dlUrl), 500);
       } else {
         const FileSystem = await import('expo-file-system');
         const Sharing = await import('expo-sharing');
         const b64 = arrayBufferToBase64(await res.arrayBuffer());
-        const path = FileSystem.cacheDirectory + `vitatracker-corporate.pdf`;
+        const path = FileSystem.cacheDirectory + `morefit-corporate.pdf`;
         await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
         if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path);
       }

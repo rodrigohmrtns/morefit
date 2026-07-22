@@ -3,7 +3,7 @@
  *
  * Usage:
  *   import { t, useLocale } from '@/src/i18n';
- *   t('paywall.title')  // "VitaTracker Premium"
+ *   t('paywall.title')  // "MoreFit Premium"
  *   const { locale, setLocale } = useLocale();
  *
  * Missing keys fall back to the pt-BR string; if a section is missing entirely
@@ -148,7 +148,7 @@ const ptBR = {
     suggest5: 'Como quebrar minha estagnação?',
   },
   paywall: {
-    title: 'VitaTracker Premium',
+    title: 'MoreFit Premium',
     subtitle: 'Desbloqueie IA avançada, análises profundas e ferramentas exclusivas.',
     monthly: 'Mensal',
     annual: 'Anual',
@@ -243,6 +243,13 @@ const ptBR = {
     streak: 'Streak',
     streakDays: 'dias seguidos',
     footNote: 'Cole este token no widget quando adicioná-lo à tela inicial. Se suspeitar de vazamento, rotacione o token — ele invalidará qualquer instância antiga.',
+  },
+  timeline: {
+    title: 'Timeline',
+    subtitle: 'Sua jornada diária, em um só lugar',
+    empty: 'Nenhum registro neste dia',
+    emptyBody: 'Toque em algum dia com marcadores para ver detalhes, ou registre uma atividade agora.',
+    today: 'Hoje',
   },
 } as const;
 
@@ -380,7 +387,7 @@ const en: Dict = {
     suggest5: 'How to break my plateau?',
   },
   paywall: {
-    title: 'VitaTracker Premium',
+    title: 'MoreFit Premium',
     subtitle: 'Unlock advanced AI, deep insights and exclusive tools.',
     monthly: 'Monthly',
     annual: 'Annual',
@@ -475,6 +482,13 @@ const en: Dict = {
     streak: 'Streak',
     streakDays: 'days in a row',
     footNote: 'Paste this token in the widget when adding it to your home screen. If leaked, rotate — it invalidates any old instance.',
+  },
+  timeline: {
+    title: 'Timeline',
+    subtitle: 'Your daily journey, in one place',
+    empty: 'No entries for this day',
+    emptyBody: 'Tap a day with markers to see details, or log an activity now.',
+    today: 'Today',
   },
 };
 
@@ -610,7 +624,7 @@ const es: Dict = {
     suggest5: '¿Cómo romper mi estancamiento?',
   },
   paywall: {
-    title: 'VitaTracker Premium',
+    title: 'MoreFit Premium',
     subtitle: 'Desbloquea IA avanzada, análisis profundos y herramientas exclusivas.',
     monthly: 'Mensual',
     annual: 'Anual',
@@ -705,6 +719,13 @@ const es: Dict = {
     streak: 'Racha',
     streakDays: 'días seguidos',
     footNote: 'Pega este token en el widget al añadirlo a la pantalla de inicio. Si se filtra, rota — invalida cualquier instancia antigua.',
+  },
+  timeline: {
+    title: 'Timeline',
+    subtitle: 'Tu día a día, en un solo lugar',
+    empty: 'Sin registros este día',
+    emptyBody: 'Toca un día con marcadores para ver detalles, o registra una actividad ahora.',
+    today: 'Hoy',
   },
 };
 

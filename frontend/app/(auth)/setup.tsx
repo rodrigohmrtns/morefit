@@ -94,7 +94,7 @@ export default function Setup() {
           {step === 0 && (
             <View style={s.section}>
               <Text style={s.title}>Olá, {user?.name?.split(' ')[0]}! 👋</Text>
-              <Text style={s.sub}>Vamos personalizar o VitaTracker para você.</Text>
+              <Text style={s.sub}>Vamos personalizar o MoreFit para você.</Text>
               <Text style={s.label}>Sexo</Text>
               <View style={s.chipsRow}>
                 {(Object.keys(GENDER_LABEL) as Gender[]).map(g => (

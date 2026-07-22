@@ -1,4 +1,4 @@
-"""VitaTracker Backend API Tests - covers auth, profile, weight, meals, water, dashboard, meals/analyze."""
+"""MoreFit Backend API Tests - covers auth, profile, weight, meals, water, dashboard, meals/analyze."""
 import base64
 import io
 import os
@@ -96,7 +96,7 @@ class TestHealth:
         assert r.status_code == 200
         j = r.json()
         assert j.get("status") == "ok"
-        assert j.get("app") == "VitaTracker"
+        assert j.get("app") == "MoreFit"
 
 
 # ----- Auth -----

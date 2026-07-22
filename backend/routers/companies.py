@@ -508,7 +508,7 @@ async def company_report_pdf(company_id: str, user: dict = Depends(current_user)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 18)
     pdf.set_text_color(38, 48, 26)
-    pdf.cell(0, 10, f"VitaTracker Corporate - {company['name']}", ln=True)
+    pdf.cell(0, 10, f"MoreFit Corporate - {company['name']}", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(80, 80, 80)
     pdf.cell(0, 6, f"Setor: {company.get('industry') or '-'}  |  Plano: {company['plan'].capitalize()}", ln=True)
@@ -558,5 +558,5 @@ async def company_report_pdf(company_id: str, user: dict = Depends(current_user)
     pdf_bytes = bytes(pdf.output())
     return Response(
         content=pdf_bytes, media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="vitatracker-corporate-{company["name"].replace(" ", "_")}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="morefit-corporate-{company["name"].replace(" ", "_")}.pdf"'},
     )

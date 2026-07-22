@@ -88,7 +88,7 @@ export default function PrivacyScreen() {
       const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/lgpd/export`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
       if (!res.ok) throw new Error(`Erro ${res.status}`);
-      const filename = `vitatracker-lgpd-${summary?.email?.replace('@', '_at_') ?? 'user'}.json`;
+      const filename = `morefit-lgpd-${summary?.email?.replace('@', '_at_') ?? 'user'}.json`;
       if (typeof window !== 'undefined' && (window as any).URL?.createObjectURL) {
         const blob = await res.blob();
         const dlUrl = (window as any).URL.createObjectURL(blob);

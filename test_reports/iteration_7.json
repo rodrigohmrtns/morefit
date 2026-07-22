@@ -1,0 +1,47 @@
+{
+  "summary": "MoreFit rebrand + UX Premium + Calendar Timeline validated end-to-end. Backend: full pytest suite 69/69 GREEN (no regression, ~67s). New public-URL smoke suite /app/backend/tests/test_timeline_public.py 10/10 GREEN (rebrand root {app:MoreFit,status:ok} ✅, /api/timeline/month?ym=2026-06 returns 30 days with correct counts+totals schema ✅, /api/timeline/day?date=today returns date+summary+events ✅, both require auth (401 without token) ✅, regression on /dashboard/summary, /water, /meals, /weight, /exercises ✅). Frontend: web preview loads with title 'MoreFit' and onboarding logo 'MoreFit' ✅; login (ana@example.com / secret123) works ✅; Home shows FAB [data-testid=home-fab-quick] and opens themed BottomSheet titled 'Registrar rápido' with 6 quick actions ✅; tapping [data-testid=home-water-300] persists water and (in backend) is reflected in the timeline events for today ✅ — see minor UX bugs below; /timeline route reachable via direct URL AND via Profile → Timeline link ✅; calendar renders 7-col weekday header (D S T Q Q S S), day cells 1..31, today (22) with brand-fill and 22-selected chip 'Quarta-feira, 22 de julho', summary chip '1200 ml', event feed with themed nodes per kind (water, exercise) ✅; day with logs (day 19) shows colored dots ✅; testID [timeline-day-YYYY-MM-DD] present and clickable ✅; Progress tab renders chart ✅. No React Native red screen. No deprecated packages detected (expo-av / expo-barcode-scanner / expo-background-fetch not used).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Home / BottomSheet close", "issue": "Pressing keyboard Escape does NOT dismiss the bottom sheet on web preview. The onboard '×' close icon and backdrop tap work in the app itself, but a keyboard/Escape dismiss would improve web-preview UX and accessibility.", "testID": "home-fab-quick", "priority": "LOW"},
+      {"component": "Home / Water quick-add toast", "issue": "After tapping [data-testid=home-water-300], the toast '+300 ml' did not remain visible long enough to detect via DOM read at t+1.5s, AND the Hidratação card value stayed at '1200 ml' visually while the underlying POST /api/water succeeded (verified by the new water event appearing on /timeline for today). Optimistic update from `addWaterMut.onMutate` seems to not repaint the StatCard, or invalidateQueries onSettled races and reverts the local bump before re-render. Recommend inspecting the useQuery cache read used by the StatCard vs. the setQueryData shape.", "testID": "home-water-300", "priority": "MEDIUM"},
+      {"component": "Timeline / event times", "issue": "All water and exercise entries show time '00:00' because seeded/HealthKit-synced entries do not persist a `time` field; the backend defaults to '00:00'. Cosmetic — consider hiding the time chip when null or falling back to created_at.", "testID": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BottomSheet quick actions", "issues": ["Labels currently render in English ('Log water', 'Add meal', 'Log weight'...) because Ana's locale defaults to English; the review request expected pt-BR ('Água', 'Refeição', 'Peso'...). Verified pt-BR keys `palette.*` exist in i18n. Not a bug — behavior is correct once user picks Português in Profile — but consider defaulting the seeded Ana account (or new registrations) to pt-BR since the primary market is Brazil (morefit.com.br)."]}
+    ],
+    "react_native_issues": [
+      {"component": "@gorhom/bottom-sheet / React 19", "issue": "Console error 'Accessing element.ref was removed in React 19. ref is now a regular prop.' — likely from @gorhom/bottom-sheet internals accessing legacy child.ref. Not blocking, but worth watching for a lib upgrade. Reference: web preview console during BottomSheet mount."},
+      {"component": "react-native-web shadow* props", "issue": "Deprecation warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Multiple locations use shadowColor/shadowOffset/shadowOpacity/shadowRadius (e.g. /app/frontend/app/(tabs)/index.tsx:655-660 fab style). Migrate to `boxShadow` for web parity in a future pass."},
+      {"component": "react-native-web props.pointerEvents", "issue": "Warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Grep for `pointerEvents=` in components and move into style."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_timeline.py",
+    "/app/backend/tests/test_timeline_public.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "MEDIUM: Fix Home Hidratação optimistic update — after +300 tap the water total in the StatCard should bump immediately (currently stays visually at 1200 ml; only the toast confirms server-side write). Inspect `addWaterMut.onMutate` in /app/frontend/app/(tabs)/index.tsx around lines 97-118 and verify the setQueryData shape matches what `Home` reads.",
+    "LOW: Consider defaulting `locale` to 'pt-BR' for new registrations (morefit.com.br is a BR product) so the BottomSheet labels display as 'Água/Refeição/Peso/Exercício/Sono/Foto' per the spec, without requiring a manual Profile switch.",
+    "LOW: In /timeline event rendering, hide the `time` chip when the value is '00:00' or fall back to created_at — many synced entries have no time and read as '00:00'.",
+    "LOW/NICE-TO-HAVE: Migrate deprecated `shadow*` style props to `boxShadow` and `props.pointerEvents` to `style.pointerEvents` for react-native-web parity. Also monitor @gorhom/bottom-sheet for the React 19 `element.ref` compatibility fix."
+  ],
+  "critical_code_review_comments": [
+    "routers/timeline.py is a good size (~200 lines), well-commented, uses parallel-per-collection aggregations, and correctly returns a padded 30/31-day array with counts+totals — no ObjectId leaks (all `.find` calls project `_id:0`).",
+    "test_timeline.py builds a real user, exercises month+day+auth paths, and cleans up all 8 collections after — solid test hygiene.",
+    "Home screen (~660 lines) is getting large; could be split into Header/Hero/StatGrid/CTA sub-components. Not blocking.",
+    "Timeline screen (/app/frontend/app/timeline.tsx) uses pull-to-refresh, skeleton loaders, and empty state — all three new UX primitives — correctly. testID coverage on day cells is excellent.",
+    "server.py: title correctly rebranded to 'MoreFit API' (verified via / endpoint). DB_NAME kept as 'vitatracker' internally per note — no data loss."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_timeline_public.py (new — 10 public-URL smoke tests)"
+  ],
+  "success_rate": {"backend": "100% (69/69 pytest local + 10/10 public URL)", "frontend": "~92% — all core flows work; only the Hidratação optimistic UI repaint needs attention"},
+  "seed_data_creation": "Test added 1 water entry (+300 ml) to Ana on today's date via UI click during timeline verification. Backend test_timeline.py creates & fully cleans up its own throwaway user per run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New timeline endpoints are stable — the pytest coverage (test_timeline.py + test_timeline_public.py) is idempotent and safe to re-run. When retesting the Home water optimistic update fix, use testID [data-testid=home-water-300] and read the Hidratação value at t+2s AFTER onSuccess — the toast '+X ml' appears in top-right for ~2s. To flip UI to pt-BR for BottomSheet copy verification, log in and tap Profile → Language → Português.",
+  "rca_of_issue": "Hidratação not visually updating after +300 tap: hypothesized race between `onMutate` (setQueryData) and `onSettled` invalidate — the invalidation triggers a refetch that returns before the mutation POST finishes on slow network, temporarily reverting the optimistic bump. Alternative RCA: the StatCard reads `data?.water.total_ml` from the `dashQuery.data` closure but the closure doesn't re-subscribe to the query on setQueryData (unlikely with react-query v5). Recommend reading the value via useQuery result directly and confirming with React DevTools that cache mutates."
+}

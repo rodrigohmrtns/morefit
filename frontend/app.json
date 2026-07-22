@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "VitaTracker",
-    "slug": "vitatracker",
+    "name": "MoreFit",
+    "slug": "morefit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vitatracker",
+    "scheme": "morefit",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {

@@ -23,7 +23,7 @@ from deps import (
 )
 
 router = APIRouter(tags=["coach"])
-log = logging.getLogger("vitatracker.coach")
+log = logging.getLogger("morefit.coach")
 
 
 # ============= Photo comparison =============
@@ -175,7 +175,7 @@ async def coach_chat(payload: CoachMsgIn, user: dict = Depends(require_premium))
     session_id = payload.session_id or f"coach_{user['user_id']}_{uuid.uuid4().hex[:8]}"
     context = await _build_user_context(user)
     system = (
-        "Você é o Coach Virtual do VitaTracker: nutricionista + personal trainer + psicólogo motivacional. "
+        "Você é o Coach Virtual do MoreFit: nutricionista + personal trainer + psicólogo motivacional. "
         "Responda em português do Brasil, de forma acolhedora, prática e concisa (máximo 4-6 frases). "
         "Use os dados do usuário fornecidos abaixo para personalizar. Se detectar estagnação, oriente ajustes. "
         "Se for pergunta sobre suplementos/medicações, oriente consultar um profissional. "
@@ -225,7 +225,7 @@ async def coach_analyze(user: dict = Depends(require_premium)):
         api_key=EMERGENT_LLM_KEY,
         session_id=f"analysis_{user['user_id']}_{uuid.uuid4().hex[:6]}",
         system_message=(
-            "Você é um analista de saúde do VitaTracker. Com base nos dados do usuário, produza um relatório "
+            "Você é um analista de saúde do MoreFit. Com base nos dados do usuário, produza um relatório "
             "com JSON APENAS no formato: {\"summary\":\"resumo em 2 frases\","
             "\"strengths\":[\"até 3 pontos fortes\"],\"opportunities\":[\"até 3 oportunidades de melhoria\"],"
             "\"stagnation_alert\": true|false, \"next_actions\":[\"até 3 ações práticas curtas\"]}. "
