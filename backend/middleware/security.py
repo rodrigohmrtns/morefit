@@ -60,3 +60,6 @@ def rate_limit_dep(limit: str):
 auth_rate_limit = rate_limit_dep(settings.rate_limit_auth)
 register_rate_limit = rate_limit_dep(settings.rate_limit_register)
 billing_rate_limit = rate_limit_dep(settings.rate_limit_billing)
+# 60 requests/min per IP is generous for a home-screen widget refreshing
+# every few minutes, but blocks scraping/brute-forcing of token space.
+widget_public_rate_limit = rate_limit_dep("60/minute")

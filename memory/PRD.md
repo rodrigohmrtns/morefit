@@ -416,3 +416,46 @@ Tela `/notifications-settings.tsx`:
 - **Datas** formatadas de acordo com o locale via `toLocaleDateString`.
 
 **Validação**: Screenshot confirmou troca instantânea PT → EN em todas as labels da Home (Peso atual→Current weight, Meta→Goal, dias restantes→days remaining, IMC→BMI, Sobrepeso→Overweight, tabs Home/Diary/Progress/Profile).
+
+## v2.0 – P3 + P4 completo (Offline / Palette / WCAG / Wearables / Widgets)
+
+### P4.1 Offline Cache (React Query + AsyncStorage)
+- `src/query.tsx`: QueryClient com `PersistQueryClientProvider`, 24h cache, `networkMode: 'offlineFirst'`, NetInfo listener para `onlineManager`.
+- Home migrada para `useQuery` (dashboard + motivation) e `useMutation` com **rollback otimista** para água.
+- Banner "Você está offline — usando dados em cache" no header quando NetInfo detecta offline.
+- Water buttons agora incrementam instantaneamente na UI antes do server confirmar.
+
+### P4.3 Command Palette (⌘K global)
+- `src/command-palette.tsx`: overlay full-screen com Fuse.js (fuzzy search), agrupamento por categoria (AI/LOG/Nav/Settings/Account), 18 comandos registrados.
+- FAB flutuante 52x52 no canto inferior direito (só quando logado).
+- Atalho `Ctrl/Cmd+K` na web + hint no rodapé.
+- i18n completo (PT/EN/ES).
+- Wired em `_layout.tsx` via `CommandPaletteProvider`.
+
+### P4.2 WCAG AA baseline
+- `src/utils/a11y.ts`: helpers `a11yButton`, `a11yIcon`, `a11yHeading`, `a11yTab`, `a11yProgress`, `a11yImage`, `textScale`, `minTouchHitSlop`.
+- `src/components/back-button.tsx`: BackButton reusável com 44x44 touch target + label + hitSlop.
+- Script Python patchou 24 telas — todos os botões `chevron-back` ganharam `accessibilityRole="button"` + `accessibilityLabel="Voltar"`.
+- FAB, Water buttons, Wearables toggles: labels/roles adicionados.
+
+### P3 Wearables scaffolding
+- `routers/wearables.py` (5 endpoints): `POST /wearables/sync` aceita batch (steps/heart_rate/sleep/weights/active_energy) com dedup por (user_id, date, source); `GET /wearables/status` retorna sync-per-source; `GET /wearables/heart-rate` últimos samples.
+- Frontend: `src/hooks/use-wearables.ts` detecta capabilities (native build vs Expo Go/web) com fallback gracioso; `app/wearables.tsx` tela com banner explicativo, toggles por métrica, botão Sync, footer de privacidade.
+- Link no Perfil + Command Palette.
+- **Só testável em build nativo** — no preview mostra banner "Publish → Deploy → Generate builds".
+
+### P4.4 Widgets iOS/Android
+- `routers/widgets.py` (3 endpoints): `POST /widgets/token` provisiona/rotaciona token opaco (secrets.token_urlsafe), `GET /widgets/summary/{token}` payload compacto pra widget (kcal/água/passos/streak/peso), `DELETE /widgets/token` revoga.
+- **Rate limit 60/min por IP** no endpoint público de summary.
+- Frontend: `app/widgets.tsx` tela com token gerado, botões Copy/Rotate/Revoke, previews visuais de 3 widgets (Calorias/Hidratação/Streak).
+- Link no Perfil + Command Palette.
+
+### Testes
+- **65/65 pytest passando** (+12 novos em `test_wearables_widgets.py`).
+- Zero regressão nos 53 anteriores.
+- Frontend validado end-to-end via screenshots: água otimista (0→900ml em 3 clicks), Command Palette (fuzzy search "agua" → navega), Wearables (banner), Widgets (token+previews).
+
+### Packages instalados
+- `@tanstack/react-query 5.101.4`, `@tanstack/react-query-persist-client 5.101.4`, `@tanstack/query-async-storage-persister 5.101.4`
+- `@react-native-async-storage/async-storage`, `@react-native-community/netinfo 11.4.1`
+- `fuse.js 7.5.0`

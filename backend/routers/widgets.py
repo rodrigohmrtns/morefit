@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
 from deps import current_user, db, new_id, now_utc, today_iso
+from middleware.security import widget_public_rate_limit
 
 router = APIRouter(tags=["widgets"])
 
@@ -52,7 +53,8 @@ async def _resolve_widget_user(token: str) -> dict:
 
 
 @router.get("/widgets/summary/{token}")
-async def widget_summary(token: str = Path(..., min_length=10)):
+async def widget_summary(token: str = Path(..., min_length=10),
+                         _rl: None = Depends(widget_public_rate_limit)):
     """Small payload shaped for a compact home-screen widget."""
     user = await _resolve_widget_user(token)
     uid = user["user_id"]
