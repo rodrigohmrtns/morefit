@@ -768,7 +768,9 @@ function detectDeviceLocale(): Locale {
     const dev = getLocales()?.[0]?.languageTag?.toLowerCase() ?? '';
     if (dev.startsWith('pt')) return 'pt-BR';
     if (dev.startsWith('es')) return 'es';
-    return 'en';
+    if (dev.startsWith('en')) return 'en';
+    // Default to pt-BR for MoreFit (Brazilian product / morefit.com.br)
+    return 'pt-BR';
   } catch { return 'pt-BR'; }
 }
 

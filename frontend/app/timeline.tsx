@@ -261,7 +261,7 @@ export default function TimelineScreen() {
                   </View>
                   <View style={[s.evCard, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
                     <View style={s.evHead}>
-                      <Text style={s.evTime}>{ev.time}</Text>
+                      {ev.time && ev.time !== '00:00' ? <Text style={s.evTime}>{ev.time}</Text> : null}
                       <Text style={s.evKind}>{meta.label}</Text>
                     </View>
                     <Text style={s.evTitle}>{ev.title}</Text>
