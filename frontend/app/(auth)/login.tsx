@@ -34,7 +34,7 @@ export default function Login() {
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-          <Pressable onPress={() => router.back()} style={s.back} testID="login-back-button">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="login-back-button">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
 

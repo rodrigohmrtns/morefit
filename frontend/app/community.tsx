@@ -121,7 +121,7 @@ export default function CommunityScreen() {
     <View style={s.root}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.iconBtn} testID="community-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.iconBtn} testID="community-back">
             <Ionicons name="chevron-back" size={22} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title}>Comunidade</Text>

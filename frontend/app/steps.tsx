@@ -67,7 +67,7 @@ export default function Steps() {
     <View style={s.root} testID="steps-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.back} testID="steps-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="steps-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title}>Passos</Text>

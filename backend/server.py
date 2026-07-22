@@ -34,6 +34,8 @@ from routers.community import router as community_router
 from routers.professional import router as professional_router
 from routers.companies import router as companies_router
 from routers.billing import router as billing_router
+from routers.wearables import router as wearables_router
+from routers.widgets import router as widgets_router
 
 # Pre-existing sub-app routers (already modularized)
 from routers.lgpd import router as lgpd_router
@@ -77,6 +79,8 @@ api.include_router(community_router)
 api.include_router(professional_router)
 api.include_router(companies_router)
 api.include_router(billing_router)
+api.include_router(wearables_router)
+api.include_router(widgets_router)
 api.include_router(lgpd_router)
 api.include_router(admin_router)
 
@@ -133,6 +137,14 @@ async def startup() -> None:
     await db.audit_logs.create_index([("user_id", 1), ("timestamp", -1)])
     await db.audit_logs.create_index("event_type")
     await db.audit_logs.create_index("timestamp")
+
+    # Wearables
+    await db.wearable_syncs.create_index([("user_id", 1), ("at", -1)])
+    await db.heart_rate.create_index([("user_id", 1), ("timestamp", -1)])
+
+    # Widgets
+    await db.widget_tokens.create_index("token", unique=True)
+    await db.widget_tokens.create_index("user_id", unique=True)
 
     log.info("VitaTracker started — indexes ready.")
 

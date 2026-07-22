@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing,
   FadeInDown,
 } from 'react-native-reanimated';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/src/api/client';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useLocale } from '@/src/i18n';
+import { useOnline } from '@/src/hooks/use-online';
 import { haptic } from '@/src/utils/haptic';
 import { radius, shadow, spacing, ThemeColors, typography, useTheme } from '@/src/theme';
 
@@ -42,22 +44,34 @@ export default function Home() {
     if (bmi < 30) return t('home.bmiOver');
     return t('home.bmiObese');
   }, [t]);
-  const [data, setData] = useState<Summary | null>(null);
-  const [quote, setQuote] = useState<string>('');
-  const [refreshing, setRefreshing] = useState(false);
+  const online = useOnline();
+  const qc = useQueryClient();
 
-  const load = useCallback(async () => {
-    try {
-      const [sum, q] = await Promise.all([
-        api<Summary>('/dashboard/summary'),
-        api<{ quote: string }>('/motivation'),
-      ]);
-      setData(sum); setQuote(q.quote);
-    } catch (e) { console.log(e); }
-  }, []);
+  // Dashboard summary — main source of truth for Home
+  const dashQuery = useQuery({
+    queryKey: ['dashboard', 'summary'],
+    queryFn: () => api<Summary>('/dashboard/summary'),
+    staleTime: 30 * 1000,
+  });
+  const data = dashQuery.data;
+  const refreshing = dashQuery.isRefetching;
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+  // Daily motivation quote — refetch once per day
+  const quoteQuery = useQuery({
+    queryKey: ['motivation'],
+    queryFn: () => api<{ quote: string }>('/motivation'),
+    staleTime: 60 * 60 * 1000,
+  });
+  const quote = quoteQuery.data?.quote ?? '';
+
+  // Re-fetch on tab focus (respects staleTime — instant if fresh)
+  useFocusEffect(useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['dashboard'] });
+  }, [qc]));
+
+  const onRefresh = async () => {
+    await Promise.all([dashQuery.refetch(), quoteQuery.refetch()]);
+  };
 
   const kcalGoal = data?.calories.goal ?? user?.daily_calorie_goal ?? 2000;
   const kcalConsumed = data?.calories.consumed ?? 0;
@@ -73,9 +87,28 @@ export default function Home() {
   const stepsGoal = data?.steps.goal ?? 8000;
   const stepsPct = Math.min(100, (steps / stepsGoal) * 100);
 
-  const addWater = async (amt: number) => {
-    try { await api('/water', { method: 'POST', body: { amount_ml: amt } }); await load(); } catch {}
-  };
+  // Optimistic add-water: bumps `data.water.total_ml` in cache immediately,
+  // then reconciles with server. Rolls back on error.
+  const addWaterMut = useMutation({
+    mutationFn: (amount_ml: number) => api('/water', { method: 'POST', body: { amount_ml } }),
+    onMutate: async (amount_ml: number) => {
+      await qc.cancelQueries({ queryKey: ['dashboard', 'summary'] });
+      const prev = qc.getQueryData<Summary>(['dashboard', 'summary']);
+      if (prev) {
+        qc.setQueryData<Summary>(['dashboard', 'summary'], {
+          ...prev,
+          water: { ...prev.water, total_ml: prev.water.total_ml + amount_ml },
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['dashboard', 'summary'], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] }),
+  });
+
+  const addWater = (amt: number) => { haptic.tap(); addWaterMut.mutate(amt); };
 
   // Subtle pulse for premium AI buttons (item 10 — UX premium)
   const pulse = useSharedValue(1);
@@ -104,6 +137,12 @@ export default function Home() {
             )}
           </Pressable>
         </View>
+        {!online && (
+          <View style={s.offlineBar} testID="home-offline-bar">
+            <Ionicons name="cloud-offline" size={14} color={colors.warning} />
+            <Text style={s.offlineTxt}>{t('common.offline')}</Text>
+          </View>
+        )}
       </SafeAreaView>
 
       <ScrollView
@@ -179,7 +218,14 @@ export default function Home() {
               label={t('home.hydration')} value={`${waterTotal}`} unit="ml" progress={waterPct}
               action={<View style={s.miniActions}>
                 {[200, 300, 500].map(ml => (
-                  <Pressable key={ml} onPress={() => addWater(ml)} style={s.miniBtn} testID={`home-water-${ml}`}>
+                  <Pressable
+                    key={ml}
+                    onPress={() => addWater(ml)}
+                    style={s.miniBtn}
+                    testID={`home-water-${ml}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('palette.addWater')} +${ml} ml`}
+                  >
                     <Text style={s.miniBtnTxt}>+{ml}</Text>
                   </Pressable>
                 ))}
@@ -498,4 +544,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   photoItem: { width: 96, gap: 4 },
   photoPh: { width: 96, height: 96, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: 'center', justifyContent: 'center' },
   photoDate: { ...typography.small, color: colors.muted, textAlign: 'center' },
+  offlineBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(244,162,97,0.15)', paddingHorizontal: spacing.xl, paddingVertical: 6, borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(244,162,97,0.3)' },
+  offlineTxt: { ...typography.small, color: colors.warning, fontWeight: '700' },
 });

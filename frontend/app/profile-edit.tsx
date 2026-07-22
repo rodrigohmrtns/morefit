@@ -101,7 +101,7 @@ export default function ProfileEdit() {
     <View style={s.root} testID="profile-edit-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.back} testID="profile-edit-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="profile-edit-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title}>Editar perfil</Text>

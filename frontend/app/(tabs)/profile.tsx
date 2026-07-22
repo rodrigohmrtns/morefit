@@ -181,6 +181,20 @@ export default function Profile() {
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </View>
           </Pressable>
+          <Pressable onPress={() => router.push('/wearables')} testID="profile-wearables-cta">
+            <View style={[s.row, s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name="watch" size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>{t('wearables.title')}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </View>
+          </Pressable>
+          <Pressable onPress={() => router.push('/widgets')} testID="profile-widgets-cta">
+            <View style={[s.row, s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name="apps" size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>{t('widgets.title')}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </View>
+          </Pressable>
           {user?.role === 'super_admin' && (
             <Pressable onPress={() => router.push('/admin')} testID="profile-admin-cta">
               <View style={[s.row, s.rowBorder]}>

@@ -53,7 +53,7 @@ export default function BodyComposition() {
     <View style={s.root} testID="body-composition-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.back} testID="body-comp-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="body-comp-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title}>Composição corporal</Text>

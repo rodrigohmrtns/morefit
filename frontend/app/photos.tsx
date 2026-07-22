@@ -93,7 +93,7 @@ export default function Photos() {
     <View style={s.root} testID="photos-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.back} testID="photos-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="photos-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title}>Fotos</Text>

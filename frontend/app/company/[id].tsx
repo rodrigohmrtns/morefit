@@ -189,7 +189,7 @@ export default function CompanyDetailScreen() {
     <View style={s.root}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.iconBtn} testID="co-detail-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.iconBtn} testID="co-detail-back">
             <Ionicons name="chevron-back" size={22} color={colors.onSurface} />
           </Pressable>
           <Text style={s.title} numberOfLines={1}>{company.name}</Text>

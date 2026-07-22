@@ -80,7 +80,7 @@ export default function Recipes() {
       <View style={s.root} testID="recipes-screen">
         <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
           <View style={s.header}>
-            <Pressable onPress={() => router.back()} style={s.back} testID="recipes-back">
+            <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="recipes-back">
               <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
             </Pressable>
             <Text style={s.title}>{t('recipes.title')}</Text>
@@ -104,7 +104,7 @@ export default function Recipes() {
     <View style={s.root} testID="recipes-screen">
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.back} testID="recipes-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.back} testID="recipes-back">
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <View style={{ flex: 1 }}>

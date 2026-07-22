@@ -5,8 +5,10 @@ import { LogBox, StatusBar, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthProvider } from '@/src/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
+import { CommandPaletteFab, CommandPaletteProvider } from '@/src/command-palette';
 import { LocaleProvider } from '@/src/i18n';
+import { QueryProvider } from '@/src/query';
 import { ThemeProvider, useTheme } from '@/src/theme';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 
@@ -15,6 +17,7 @@ SplashScreen.preventAutoHideAsync();
 
 function ThemedStack() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <StatusBar
@@ -22,6 +25,7 @@ function ThemedStack() {
         backgroundColor={colors.surface}
       />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />
+      {user ? <CommandPaletteFab /> : null}
     </View>
   );
 }
@@ -40,9 +44,13 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <LocaleProvider>
-            <AuthProvider>
-              <ThemedStack />
-            </AuthProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <CommandPaletteProvider>
+                  <ThemedStack />
+                </CommandPaletteProvider>
+              </AuthProvider>
+            </QueryProvider>
           </LocaleProvider>
         </ThemeProvider>
       </SafeAreaProvider>

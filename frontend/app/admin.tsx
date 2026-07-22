@@ -117,7 +117,7 @@ export default function AdminScreen() {
     <View style={s.root}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: colors.surface }}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.iconBtn} testID="admin-back">
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={s.iconBtn} testID="admin-back">
             <Ionicons name="chevron-back" size={22} color={colors.onSurface} />
           </Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
