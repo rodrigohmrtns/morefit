@@ -79,4 +79,7 @@ agenthub/agents/youtube/db
 memory/test_credentials.md
 
 # Mobile development
-android-sdk/
+android-sdk/landing-web/node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
+landing-web/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
+portal-web/node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
+portal-web/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node

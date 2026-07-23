@@ -701,3 +701,50 @@ agent_communication:
          - Full suite: **69/69 passing** (48 antigos + 4 recipes + 4 admin + 4 wearables/widgets + 4 timeline + 5 modules 16-20 + ...)
 
       Screenshot validado: Home + Timeline + Bottom Sheet + Toast funcionais. Solicito testing_agent para validar timeline (backend + frontend E2E).
+
+    -agent: "main"
+    -message: |
+      Sessão P2 — Ecossistema MoreFit expandido (monorepo):
+
+      1. **Landing page** (`/app/landing-web/`) — Next.js 14 + Tailwind + MDX blog
+         - Home institucional: hero animado, phone mockup, features grid (8), how-it-works, planos (Free/Premium/Empresarial), depoimentos, FAQ, download CTA
+         - Blog com 3 posts MDX de exemplo (nutrição, jejum, IA)
+         - SEO completo: metadata dinâmica, sitemap.ts, robots.ts, Open Graph, JSON-LD (Organization schema)
+         - Design consistente com paleta MoreFit (brand lime + surface dark)
+         - Build OK: `yarn build` gera 10 páginas estáticas + rotas SSG do blog
+         - Screenshot: landing home renderizada com sucesso em 1280x900
+
+      2. **Portal profissional** (`/app/portal-web/`) — Next.js 14 + Tailwind + React Query + Recharts
+         - Login com validação Zod, feedback de erro, role-check (`nutritionist|personal|doctor|admin`)
+         - Middleware Next.js protege todas as rotas (redirect → /login se sem cookie `mf_token`)
+         - Dashboard: sidebar responsiva, stat cards, lista de pacientes recentes
+         - Página `/patients` com busca fuzzy
+         - Página `/patient/[id]` com gráfico Recharts de evolução de peso, tabelas de refeições/exercícios, link direto ao PDF (endpoint backend existente)
+         - `/reports` (placeholder) e `/settings` (perfil do profissional)
+         - Auth **compartilha JWT** com app mobile (mesmo backend, cookie mf_token)
+         - Build OK: 8 rotas
+         - Screenshot: dashboard + patient detail com dados reais renderizados
+
+      3. **Backend novos endpoints** — `routers/professional.py`:
+         - `GET /api/professionals/patients` — lista pacientes que compartilharam com o e-mail do profissional (dedupe + latest weight)
+         - `GET /api/professionals/patients/{user_id}` — detalhes completos (bloqueia se não vinculado)
+         - Gate `_require_professional()` (403 para roles regulares)
+         - Testado manualmente: 403 sem role, 200 com role `nutritionist`
+
+      4. **CI/CD** (`/app/.github/workflows/`):
+         - `backend-tests.yml` — pytest com MongoDB service no PR/push
+         - `frontend-check.yml` — TypeScript check no app mobile
+         - `landing-deploy.yml` — build + SCP tarball + PM2 reload no VPS Locaweb
+         - `portal-deploy.yml` — build + SCP + PM2 reload
+         - `backend-deploy.yml` — rsync + pip install + systemd/PM2 restart
+         - README.md com fluxo completo, secrets necessários, setup do VPS, rollback
+
+      5. **Docs**:
+         - `README.md` raiz atualizado (visão monorepo)
+         - `landing-web/README.md` (deploy Locaweb passo a passo)
+         - `portal-web/README.md` (auth compartilhado, estrutura)
+
+      **Backend regression: 79/79 passing** (0 quebras).
+
+      Portas dev locais: 3000 (mobile), 3100 (landing), 3200 (portal), 8001 (backend).
+      Domínios prod sugeridos: `www.morefit.com.br` (landing), `app.morefit.com.br` (portal), `api.morefit.com.br` (backend).

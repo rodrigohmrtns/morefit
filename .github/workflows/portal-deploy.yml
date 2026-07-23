@@ -1,0 +1,97 @@
+name: Portal — build & deploy (Locaweb VPS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'portal-web/**'
+      - '.github/workflows/portal-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: portal-deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.pkg.outputs.release }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: 'portal-web/yarn.lock'
+
+      - name: Install
+        working-directory: portal-web
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: portal-web
+        run: yarn typecheck
+
+      - name: Build
+        working-directory: portal-web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PORTAL_API_URL }}
+        run: yarn build
+
+      - name: Package release tarball
+        id: pkg
+        working-directory: portal-web
+        run: |
+          RELEASE="morefit-portal-${GITHUB_SHA::7}.tar.gz"
+          tar --exclude='node_modules/.cache' -czf "../$RELEASE" \
+            .next public package.json yarn.lock next.config.mjs middleware.ts
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-release
+          path: ${{ steps.pkg.outputs.release }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: portal-release
+
+      - name: Copy release to Locaweb via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LOCAWEB_HOST }}
+          username: ${{ secrets.LOCAWEB_USER }}
+          key: ${{ secrets.LOCAWEB_SSH_KEY }}
+          port: ${{ secrets.LOCAWEB_PORT || 22 }}
+          source: "${{ needs.build.outputs.release }}"
+          target: "/var/www/morefit-portal/releases/"
+
+      - name: Extract + restart on Locaweb via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LOCAWEB_HOST }}
+          username: ${{ secrets.LOCAWEB_USER }}
+          key: ${{ secrets.LOCAWEB_SSH_KEY }}
+          port: ${{ secrets.LOCAWEB_PORT || 22 }}
+          script: |
+            set -e
+            RELEASE_FILE="/var/www/morefit-portal/releases/${{ needs.build.outputs.release }}"
+            RELEASE_DIR="/var/www/morefit-portal/current"
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf "$RELEASE_FILE" -C "$RELEASE_DIR"
+            cd "$RELEASE_DIR"
+            yarn install --production --frozen-lockfile
+            pm2 reload morefit-portal || pm2 start "yarn start" --name morefit-portal
+            pm2 save
+            ls -1t /var/www/morefit-portal/releases/*.tar.gz | tail -n +6 | xargs -r rm --

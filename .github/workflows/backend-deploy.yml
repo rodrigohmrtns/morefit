@@ -1,0 +1,48 @@
+name: Backend — deploy (Locaweb VPS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy code to Locaweb via rsync (SSH)
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avzr --delete --exclude=venv --exclude=__pycache__ --exclude=.env
+          path: backend/
+          remote_path: /var/www/morefit-backend/
+          remote_host: ${{ secrets.LOCAWEB_HOST }}
+          remote_user: ${{ secrets.LOCAWEB_USER }}
+          remote_key: ${{ secrets.LOCAWEB_SSH_KEY }}
+          remote_port: ${{ secrets.LOCAWEB_PORT || 22 }}
+
+      - name: Restart backend via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LOCAWEB_HOST }}
+          username: ${{ secrets.LOCAWEB_USER }}
+          key: ${{ secrets.LOCAWEB_SSH_KEY }}
+          port: ${{ secrets.LOCAWEB_PORT || 22 }}
+          script: |
+            set -e
+            cd /var/www/morefit-backend
+            python3 -m venv venv 2>/dev/null || true
+            source venv/bin/activate
+            pip install -r requirements.txt
+            # Assumes systemd service `morefit-backend` OR PM2 process
+            sudo systemctl restart morefit-backend || pm2 reload morefit-backend

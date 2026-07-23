@@ -60,6 +60,96 @@ async def revoke_share(share_id: str, user: dict = Depends(current_user)):
     return {"ok": True}
 
 
+# ============================================================================
+# Portal Profissional — endpoints consumed by /portal-web (Next.js)
+# Available for users whose `role` is nutritionist | personal | doctor | admin.
+# Patients are discovered via `shares` where `professional_email` matches the
+# logged-in professional's email address.
+# ============================================================================
+def _require_professional(user: dict) -> dict:
+    role = user.get("role") or "user"
+    if role not in ("nutritionist", "personal", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito a profissionais parceiros MoreFit.")
+    return user
+
+
+@router.get("/professionals/patients")
+async def list_professional_patients(user: dict = Depends(current_user)):
+    """List distinct patients (users) who shared reports with the professional's email."""
+    _require_professional(user)
+    email = (user.get("email") or "").lower().strip()
+    if not email:
+        return {"items": []}
+
+    # Distinct user_ids from `shares` matching this professional's email
+    share_docs = await db.shares.find(
+        {"professional_email": email},
+        {"_id": 0, "user_id": 1, "created_at": 1, "professional_type": 1},
+    ).to_list(500)
+
+    # Deduplicate per user_id, keep newest share_at
+    seen: dict[str, dict] = {}
+    for s in share_docs:
+        uid = s["user_id"]
+        if uid not in seen or s.get("created_at", "") > seen[uid].get("created_at", ""):
+            seen[uid] = s
+
+    if not seen:
+        return {"items": []}
+
+    uids = list(seen.keys())
+    patients = await db.users.find(
+        {"user_id": {"$in": uids}},
+        {"_id": 0, "password_hash": 0, "photo_base64": 0},
+    ).to_list(len(uids))
+
+    # Attach latest weight per patient (fast: one query grouped)
+    latest_weights = await db.weights.aggregate([
+        {"$match": {"user_id": {"$in": uids}}},
+        {"$sort": {"date": -1}},
+        {"$group": {"_id": "$user_id", "weight_kg": {"$first": "$weight_kg"}, "date": {"$first": "$date"}}},
+    ]).to_list(len(uids))
+    weight_map = {r["_id"]: r for r in latest_weights}
+
+    items = []
+    for p in patients:
+        uid = p["user_id"]
+        items.append({
+            "user_id": uid,
+            "name": p.get("name") or "—",
+            "email": p.get("email") or "",
+            "goal": p.get("goal"),
+            "height_cm": p.get("height_cm"),
+            "weight_kg": (weight_map.get(uid) or {}).get("weight_kg"),
+            "shared_at": seen[uid].get("created_at"),
+            "professional_type": seen[uid].get("professional_type"),
+        })
+    items.sort(key=lambda x: x.get("shared_at") or "", reverse=True)
+    return {"items": items}
+
+
+@router.get("/professionals/patients/{user_id}")
+async def get_professional_patient(user_id: str, user: dict = Depends(current_user)):
+    """Return the same rich data used to render reports — but requires that the
+    patient has actually shared with this professional's email."""
+    _require_professional(user)
+    email = (user.get("email") or "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado")
+
+    share = await db.shares.find_one({"user_id": user_id, "professional_email": email}, {"_id": 0})
+    if not share:
+        raise HTTPException(status_code=404, detail="Paciente não vinculado a este profissional")
+
+    data = await _build_report_data(user_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Sem dados do paciente")
+    # Remove sensitive fields before returning
+    data["user"].pop("password_hash", None)
+    data["user"].pop("photo_base64", None)
+    return data
+
+
 async def _build_report_data(uid: str) -> dict:
     user = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
     if not user:
