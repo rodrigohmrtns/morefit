@@ -12,7 +12,20 @@ from core.config import settings
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add standard security headers to every response."""
+    """Add standard security headers to every response.
+
+    For the API, the strictest thing we can do is deny all resources except
+    self (there is no HTML rendered from the API). The CSP below prevents
+    an HTML page ever being served from api.morefit.com.br from loading
+    external content, mitigating misconfiguration risk.
+    """
+
+    _API_CSP = (
+        "default-src 'none'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'none'; "
+        "form-action 'self'"
+    )
 
     async def dispatch(self, request, call_next):  # type: ignore[override]
         response: Response = await call_next(request)
@@ -20,9 +33,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault(
-            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            "Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"
         )
-        response.headers.setdefault("Permissions-Policy", "camera=(self), microphone=(self)")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+        )
+        # CSP is applied ONLY to responses that are not HTML pages we intentionally
+        # render (e.g. /report/{token} — public PDF preview). We keep it liberal
+        # enough for that path.
+        content_type = response.headers.get("content-type", "")
+        if "text/html" not in content_type:
+            response.headers.setdefault("Content-Security-Policy", self._API_CSP)
         return response
 
 

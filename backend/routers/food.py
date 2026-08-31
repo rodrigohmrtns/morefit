@@ -10,6 +10,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.image_safety import check_user_quota, sanitize_image_base64
 from deps import (
     MealIn,
     current_user,
@@ -130,6 +131,11 @@ async def del_favorite(fav_id: str, user: dict = Depends(current_user)):
 @router.post("/meals")
 async def add_meal(payload: MealIn, user: dict = Depends(current_user)):
     entry = payload.dict()
+    # Sanitize optional meal photo (magic bytes + EXIF strip + resize + quota)
+    if entry.get("image_base64"):
+        clean_b64, size = sanitize_image_base64(entry["image_base64"])
+        await check_user_quota(db, user["user_id"], extra_bytes=size)
+        entry["image_base64"] = clean_b64
     entry.update({
         "id": new_id("meal"),
         "user_id": user["user_id"],

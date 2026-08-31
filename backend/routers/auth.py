@@ -4,11 +4,15 @@ from __future__ import annotations
 from datetime import timedelta
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
+import os
+
+from core.image_safety import check_user_quota, sanitize_image_base64
 from deps import (
     GoogleSessionIn,
     LoginIn,
+    PORTAL_COOKIE_NAME,
     ProfileIn,
     RegisterIn,
     _public_user,
@@ -24,6 +28,20 @@ from middleware.security import auth_rate_limit, register_rate_limit
 from services.audit_service import audit_service
 
 router = APIRouter(tags=["auth"])
+
+PROFESSIONAL_ROLES = {"nutritionist", "personal", "doctor", "admin"}
+PORTAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+IS_PROD = os.environ.get("ENV", "dev").lower() in ("prod", "production")
+
+
+def _cookie_kwargs():
+    """Consistent, secure cookie flags across set/delete."""
+    return {
+        "httponly": True,
+        "secure": IS_PROD,
+        "samesite": "lax" if not IS_PROD else "strict",
+        "path": "/",
+    }
 
 
 @router.post("/auth/register")
@@ -124,9 +142,77 @@ async def logout(request: Request, user: dict = Depends(current_user)):
     return {"ok": True}
 
 
+# ============================================================================
+# Portal profissional — cookie HttpOnly flow (safer against XSS)
+#
+# Endpoints below issue/refresh/clear an HttpOnly cookie that the portal-web
+# uses transparently. Regular mobile auth (Bearer JWT) remains unchanged.
+# ============================================================================
+@router.post("/auth/portal/login")
+async def portal_login(
+    payload: LoginIn,
+    request: Request,
+    response: Response,
+    _rl: None = Depends(auth_rate_limit),
+):
+    """Login for the professional portal.
+
+    On success: sets HttpOnly cookie `mf_portal_session` and returns user (no token in body).
+    Requires the account role to be one of PROFESSIONAL_ROLES.
+    """
+    user = await db.users.find_one({"email": payload.email.lower()})
+    if not user or not verify_password(payload.password, user.get("password_hash") or ""):
+        await audit_service.log_event(
+            event_type="auth.portal_login_failed", request=request,
+            metadata={"email": payload.email.lower()}, severity="warn",
+        )
+        raise HTTPException(401, "Credenciais inválidas")
+    if user.get("deleted_at"):
+        raise HTTPException(403, "Conta excluída")
+
+    role = user.get("role") or "user"
+    if role not in PROFESSIONAL_ROLES:
+        await audit_service.log_event(
+            event_type="auth.portal_login_denied", user=user, request=request,
+            metadata={"role": role}, severity="warn",
+        )
+        raise HTTPException(403, "Conta sem acesso ao portal profissional")
+
+    token = make_jwt(user["user_id"])
+    response.set_cookie(
+        key=PORTAL_COOKIE_NAME,
+        value=token,
+        max_age=PORTAL_COOKIE_MAX_AGE,
+        **_cookie_kwargs(),
+    )
+    await audit_service.log_event(event_type="auth.portal_login", user=user, request=request)
+    return {"user": _public_user(user)}
+
+
+@router.get("/auth/portal/me")
+async def portal_me(user: dict = Depends(current_user)):
+    """Return current portal user (via cookie or bearer). Handy to hydrate the UI."""
+    role = user.get("role") or "user"
+    if role not in PROFESSIONAL_ROLES:
+        raise HTTPException(403, "Conta sem acesso ao portal profissional")
+    return {"user": _public_user(user)}
+
+
+@router.post("/auth/portal/logout")
+async def portal_logout(response: Response):
+    """Clear the portal cookie. Idempotent (no auth required)."""
+    response.delete_cookie(key=PORTAL_COOKIE_NAME, **_cookie_kwargs())
+    return {"ok": True}
+
+
 @router.put("/profile")
 async def update_profile(payload: ProfileIn, user: dict = Depends(current_user)):
     updates = {k: v for k, v in payload.dict().items() if v is not None}
+    # Sanitize avatar if user is uploading one
+    if updates.get("photo_base64"):
+        clean_b64, size = sanitize_image_base64(updates["photo_base64"], max_dim=512)
+        await check_user_quota(db, user["user_id"], extra_bytes=size)
+        updates["photo_base64"] = clean_b64
     if updates:
         updates["onboarded"] = True
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})

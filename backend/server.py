@@ -158,11 +158,28 @@ async def shutdown() -> None:
 
 # ---------------------------------------------------------------------------
 # CORS (must come after routes)
+# Browsers REJECT allow_origins=["*"] together with allow_credentials=True.
+# Read allowed origins from env (comma-separated) with sensible dev defaults.
 # ---------------------------------------------------------------------------
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = [
+        "http://localhost:3000",   # Expo Web
+        "http://localhost:3100",   # Landing dev
+        "http://localhost:3200",   # Portal dev
+        "https://www.morefit.com.br",
+        "https://morefit.com.br",
+        "https://app.morefit.com.br",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
+    # Also allow any Expo-hosted preview URL (regex)
+    allow_origin_regex=r"^https://.*\.emergent(agent|host)\.com$",
     allow_methods=["*"],
     allow_headers=["*"],
 )

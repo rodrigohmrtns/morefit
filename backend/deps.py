@@ -115,9 +115,18 @@ async def resolve_user(token: str) -> Optional[dict]:
     return None
 
 
+PORTAL_COOKIE_NAME = "mf_portal_session"
+
+
 async def current_user(request: Request) -> dict:
+    """Resolve the authenticated user from either:
+    - `Authorization: Bearer <token>` header  (mobile app, PDF share tokens, integrations)
+    - `mf_portal_session` HttpOnly cookie     (web portal — safer against XSS)
+    """
     auth = request.headers.get("Authorization", "")
     token = auth.split(" ", 1)[1].strip() if auth.lower().startswith("bearer ") else ""
+    if not token:
+        token = request.cookies.get(PORTAL_COOKIE_NAME, "")
     user = await resolve_user(token)
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Não autenticado")

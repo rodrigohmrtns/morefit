@@ -748,3 +748,50 @@ agent_communication:
 
       Portas dev locais: 3000 (mobile), 3100 (landing), 3200 (portal), 8001 (backend).
       Domínios prod sugeridos: `www.morefit.com.br` (landing), `app.morefit.com.br` (portal), `api.morefit.com.br` (backend).
+
+    -agent: "main"
+    -message: |
+      Sessão SEGURANÇA CRÍTICA — 3 itens P0 do audit implementados:
+
+      **ITEM 1 — Cookie HttpOnly para o portal profissional**
+      - Backend: novos endpoints `POST /api/auth/portal/login`, `GET /api/auth/portal/me`, `POST /api/auth/portal/logout`
+      - Cookie `mf_portal_session` com flags `HttpOnly + Secure (prod) + SameSite=Lax(dev)/Strict(prod) + Path=/`
+      - `current_user()` em `deps.py` agora aceita tanto `Authorization: Bearer` (mobile) quanto o cookie (portal) — retrocompatível
+      - Guard `role ∈ {nutritionist,personal,doctor,admin}` no login já
+      - Fix crítico de CORS: `allow_credentials=True` com `allow_origins=["*"]` não funciona nos browsers → agora lê `CORS_ORIGINS` do env com fallback pra localhost + domínios oficiais
+      - Portal-web: `lib/api.ts` reescrito com `withCredentials: true`, `js-cookie` removido
+      - Portal login/logout usam apenas os novos endpoints
+      - Middleware Next.js atualizado com novo nome de cookie
+      - Testado end-to-end via curl: 200 + Set-Cookie HttpOnly no login, 200 no /me com cookie, 401 sem cookie
+      - Mobile Bearer JWT continua funcionando 100% (validado)
+
+      **ITEM 2 — CSP + headers de segurança nos 3 sites**
+      - Landing `next.config.mjs`: CSP com `default-src 'self'`, connect-src limitado à `api.morefit.com.br` + Google Analytics, HSTS 2 anos com preload
+      - Portal `next.config.mjs`: CSP MAIS RESTRITO (sem GA, sem imagens externas), `Cache-Control: no-store, private`
+      - Backend `SecurityHeadersMiddleware`: CSP `default-src 'none'; frame-ancestors 'none'; base-uri 'none'` para respostas não-HTML da API
+      - Todos os sites com `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
+      - `Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()`
+
+      **ITEM 3 — Sanitização de uploads de imagem**
+      - Novo módulo `backend/core/image_safety.py`:
+        - `sanitize_image_base64()`: decode base64 → valida magic bytes (Pillow) → cap 5 MB → cap dimensão 2048px → **strip completo de EXIF/GPS/ICC** → re-encode JPEG q=85
+        - `check_user_quota()`: soma bytes em `photos`, `meals.image_base64`, `users.photo_base64` — cota 50 MB/usuário
+        - Suporte a HEIC/HEIF (iOS) via `pillow-heif` (adicionado ao requirements.txt)
+      - Aplicado em:
+        - `POST /api/photos` (progress photos) — sanitize + quota
+        - `POST /api/meals` (meal photo opcional) — sanitize + quota
+        - `POST /api/meals/analyze` (envio pro Gemini) — sanitize sem quota (não persistido)
+        - `PUT /api/profile` (avatar) — sanitize + quota + resize 512px
+      - Aceita data URI (`data:image/jpeg;base64,...`) e base64 puro
+      - Rejeita: base64 inválido, bytes que não são imagem, >5 MB, formatos não permitidos
+
+      **Testes: novos `backend/tests/test_security_critical.py` (18 testes, todos passando):**
+      - TestPortalCookieAuth: 6 testes (login role guard, HttpOnly cookie flags, /me com/sem cookie, logout)
+      - TestSecurityHeaders: 5 testes (HSTS, XFO, nosniff, CSP, Permissions-Policy, Referrer)
+      - TestImageSanitization: 7 testes (bytes inválidos, base64 corrompido, oversized, EXIF strip verificado, downscale, data URI)
+
+      **Regressão zero: 97/97 backend tests passando** (79 anteriores + 18 novos).
+
+      Docs adicionados nessa sessão:
+      - `/app/docs/infra-locaweb.md` — guia completo de setup do VPS Locaweb (usuários, firewall, MongoDB, systemd, PM2, Nginx, Certbot, backups)
+      - `/app/docs/security-audit.md` — mapeamento de 26 itens de segurança (o que já existe, o que falta, prioridades, custos)

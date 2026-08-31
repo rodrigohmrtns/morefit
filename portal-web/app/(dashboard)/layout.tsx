@@ -12,7 +12,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { clearToken, me, type User } from '@/lib/api';
+import { logout as apiLogout, me, type User } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const NAV = [
@@ -34,8 +34,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => router.replace('/login'));
   }, [router]);
 
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    try { await apiLogout(); } catch { /* still redirect */ }
     router.replace('/login');
   };
 

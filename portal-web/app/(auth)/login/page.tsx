@@ -6,15 +6,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Lock, Mail, LogIn, AlertCircle } from 'lucide-react';
-import { login, me, setToken } from '@/lib/api';
+import { login } from '@/lib/api';
 
 const schema = z.object({
   email: z.string().email('E-mail inválido'),
   password: z.string().min(6, 'Senha muito curta'),
 });
 type FormData = z.infer<typeof schema>;
-
-const PROFESSIONAL_ROLES = new Set(['nutritionist', 'personal', 'doctor', 'admin']);
 
 export default function LoginPage() {
   return (
@@ -39,18 +37,19 @@ function LoginContent() {
     setError(null);
     setLoading(true);
     try {
-      const res = await login(data.email, data.password);
-      setToken(res.token);
-      // Verify role — portal requires a professional role
-      const profile = res.user.role ? res.user : await me();
-      if (!profile.role || !PROFESSIONAL_ROLES.has(profile.role)) {
-        setError('Sua conta não tem acesso ao portal profissional. Fale com o suporte.');
-        return;
-      }
+      // Server sets HttpOnly cookie — nothing sensitive returned to JS
+      await login(data.email, data.password);
       router.replace(redirectTo);
     } catch (e: any) {
-      const msg = e?.response?.data?.detail ?? e?.message ?? 'Falha no login';
-      setError(typeof msg === 'string' ? msg : 'Falha no login');
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.detail;
+      if (status === 403) {
+        setError('Sua conta não tem acesso ao portal profissional. Fale com o suporte.');
+      } else if (status === 401) {
+        setError('E-mail ou senha inválidos.');
+      } else {
+        setError(typeof msg === 'string' ? msg : 'Falha no login. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }

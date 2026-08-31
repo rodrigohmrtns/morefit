@@ -11,6 +11,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.image_safety import sanitize_image_base64
 from deps import (
     EMERGENT_LLM_KEY,
     MealAnalyzeIn,
@@ -103,7 +104,10 @@ async def analyze_meal(payload: MealAnalyzeIn, user: dict = Depends(require_prem
         ),
     ).with_model("gemini", "gemini-2.5-flash")
 
-    img = ImageContent(image_base64=payload.image_base64)
+    # Sanitize the image before sending to Gemini — strips EXIF/GPS + validates format.
+    # We don't check quota here because /meals/analyze is transient (not persisted).
+    clean_b64, _size = sanitize_image_base64(payload.image_base64)
+    img = ImageContent(image_base64=clean_b64)
     msg = UserMessage(
         text="Analise a refeição na foto e retorne apenas o JSON solicitado.",
         file_contents=[img],

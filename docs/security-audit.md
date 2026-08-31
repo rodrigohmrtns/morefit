@@ -29,7 +29,7 @@ Este documento lista **o que já está implementado** e **o que falta** para ati
 
 ## 🔴 Gaps CRÍTICOS — resolver antes do go-live
 
-### 1. **Rotação e cofre de segredos** 🔴
+### ~~1.~~ ✅ **Rotação e cofre de segredos** — PENDENTE 🔴
 **Risco:** `JWT_SECRET`, `EMERGENT_LLM_KEY`, `STRIPE_API_KEY` hoje ficam em `.env` no VPS e provavelmente em backups não criptografados.
 
 **Ação:**
@@ -45,37 +45,19 @@ Este documento lista **o que já está implementado** e **o que falta** para ati
 - Se auto-hospedar: ativar [MongoDB Enterprise Encryption](https://www.mongodb.com/docs/manual/core/security-encryption-at-rest/) OU LUKS full-disk encryption no VPS.
 - **PII sensível** (endereço, telefone, CPF) deve ser criptografado no nível de campo com [MongoDB Client-Side Field Level Encryption (CSFLE)](https://www.mongodb.com/docs/manual/core/csfle/).
 
-### 3. **Sanitização de uploads (fotos)** 🔴
-**Risco:** Hoje aceitamos base64 direto no `POST /photos`, sem validação de tipo/tamanho/EXIF.
+### ~~3.~~ ✅ **Sanitização de uploads (fotos)** — IMPLEMENTADO 23/07/2026
+Endpoints `POST /photos`, `POST /meals`, `POST /meals/analyze`, `PUT /profile` (avatar) agora usam `core/image_safety.py`:
+- Magic bytes via Pillow `verify()`, whitelist JPEG/PNG/WEBP/HEIC
+- Size cap 5 MB, dimensão máx 2048px (avatar 512px), re-encode JPEG q=85
+- **Strip completo de EXIF/GPS/ICC**
+- Cota 50 MB por usuário via `check_user_quota()`
+- 7 testes automatizados em `test_security_critical.py`
 
-**Ação:**
-- Validar magic bytes (Pillow: `Image.open` + `verify()`).
-- Limitar tamanho: 5 MB por foto, 50 MB total por usuário.
-- Strip EXIF (metadados GPS podem vazar localização).
-- Preferível: mover storage para **S3/Backblaze/Cloudflare R2** com URLs assinadas e nunca servir bytes direto do backend.
-
-### 4. **CSP (Content Security Policy)** 🔴
-**Risco:** Se um XSS passar, atacante pode exfiltrar tokens JWT.
-
-**Ação:**
-Configurar CSP restrito nos 3 sites Next.js. Exemplo para o portal:
-```typescript
-// portal-web/next.config.mjs
-{
-  key: 'Content-Security-Policy',
-  value: [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",  // Next requer inline em dev — ajustar em prod
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://api.morefit.com.br",
-    "font-src 'self' data:",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; '),
-}
-```
+### ~~4.~~ ✅ **CSP (Content Security Policy)** — IMPLEMENTADO 23/07/2026
+- Landing (`landing-web/next.config.mjs`): CSP + HSTS 2 anos preload + Permissions-Policy
+- Portal (`portal-web/next.config.mjs`): CSP restritíssimo (sem GA, `connect-src` só api.morefit.com.br) + `Cache-Control: no-store`
+- Backend (`middleware/security.py`): CSP `default-src 'none'` para respostas não-HTML da API
+- 5 testes automatizados em `test_security_critical.py`
 
 ### 5. **2FA (dois fatores) opcional** 🔴
 **Risco:** Roubo de senha compromete conta (dados de saúde + histórico).
@@ -85,13 +67,13 @@ Configurar CSP restrito nos 3 sites Next.js. Exemplo para o portal:
 - Endpoints `POST /api/auth/2fa/setup`, `POST /api/auth/2fa/verify`, `POST /api/auth/2fa/disable`.
 - **Obrigatório** para roles `admin`, `doctor` e `nutritionist`.
 
-### 6. **Cookie de portal — flags de segurança** 🔴
-**Risco:** Hoje o portal salva JWT em cookie **acessível ao JS** (via `js-cookie`).
-
-**Ação:**
-- Migrar para cookie **HttpOnly + Secure + SameSite=Strict**, setado pelo backend em `Set-Cookie`.
-- Requer endpoint `POST /api/auth/login-portal` que retorna cookie ao invés de body.
-- Bloqueia XSS token theft.
+### ~~6.~~ ✅ **Cookie de portal — flags de segurança** — IMPLEMENTADO 23/07/2026
+- Novos endpoints `POST /api/auth/portal/login`, `GET /api/auth/portal/me`, `POST /api/auth/portal/logout`
+- Cookie `mf_portal_session` **HttpOnly + Secure (prod) + SameSite=Lax(dev)/Strict(prod)**
+- `current_user()` retrocompatível: aceita Bearer (mobile) OU cookie (portal)
+- Guard de role no login (nutritionist/personal/doctor/admin)
+- CORS reconfigurado com `allow_credentials=True` + origens explícitas (browsers rejeitam `*` com credentials)
+- 6 testes automatizados em `test_security_critical.py`
 
 ---
 

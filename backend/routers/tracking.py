@@ -7,6 +7,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.image_safety import check_user_quota, sanitize_image_base64
 from deps import (
     ExerciseIn,
     MoodIn,
@@ -169,10 +170,15 @@ class ProgressPhotoIn(BaseModel):
 
 @router.post("/photos")
 async def add_photo(payload: ProgressPhotoIn, user: dict = Depends(current_user)):
+    # 1) sanitize image (magic bytes, size, EXIF strip, resize)
+    clean_b64, size = sanitize_image_base64(payload.image_base64)
+    # 2) quota check
+    await check_user_quota(db, user["user_id"], extra_bytes=size)
+
     entry = {
         "id": new_id("ph"),
         "user_id": user["user_id"],
-        "image_base64": payload.image_base64,
+        "image_base64": clean_b64,
         "weight_kg": payload.weight_kg,
         "note": payload.note,
         "date": payload.date or today_iso(),

@@ -1,54 +1,29 @@
 /**
  * Axios client for the MoreFit backend (same FastAPI used by the mobile app).
  *
- * Auth strategy: reuses the same JWT the mobile app issues via POST /api/auth/login.
- * The JWT is stored in an HTTP-only-ish cookie via `js-cookie` (SameSite=Lax, secure in prod).
+ * Auth strategy for the portal: **HttpOnly cookie** (`mf_portal_session`)
+ * set by the backend on `POST /api/auth/portal/login`. The JS in this app
+ * NEVER sees the token, so XSS cannot exfiltrate it.
  *
- * Note: This portal is intended for users whose account role includes any of:
- *   - "nutritionist" | "personal" | "doctor" | "admin"
- * The middleware will redirect anyone without a professional role to /login.
+ * Requires `withCredentials: true` on every request + CORS
+ * `allow_credentials=True` and explicit origin on the backend.
  */
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
-import Cookies from 'js-cookie';
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'https://api.morefit.com.br';
 
-export const TOKEN_COOKIE = 'mf_token';
-
-export function getToken(): string | undefined {
-  return Cookies.get(TOKEN_COOKIE);
-}
-
-export function setToken(token: string, days = 30) {
-  Cookies.set(TOKEN_COOKIE, token, {
-    expires: days,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
-}
-
-export function clearToken() {
-  Cookies.remove(TOKEN_COOKIE);
-}
-
 export const api: AxiosInstance = axios.create({
   baseURL: `${API_URL}/api`,
   timeout: 20000,
+  withCredentials: true, // send/receive `mf_portal_session` cookie
   headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
 });
 
 api.interceptors.response.use(
   (r) => r,
   (err: AxiosError<any>) => {
     if (typeof window !== 'undefined' && err.response?.status === 401) {
-      clearToken();
       // Only redirect if we're not already on the login page (avoids loops)
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
@@ -70,16 +45,21 @@ export type User = {
   photo_base64?: string | null;
 };
 
-export type LoginRes = { token: string; user: User };
+export type LoginRes = { user: User };
 
 export async function login(email: string, password: string): Promise<LoginRes> {
-  const { data } = await api.post<LoginRes>('/auth/login', { email, password });
+  // No token in the response body — server sets HttpOnly cookie
+  const { data } = await api.post<LoginRes>('/auth/portal/login', { email, password });
   return data;
 }
 
 export async function me(): Promise<User> {
-  const { data } = await api.get<User>('/auth/me');
-  return data;
+  const { data } = await api.get<{ user: User }>('/auth/portal/me');
+  return data.user;
+}
+
+export async function logout(): Promise<void> {
+  await api.post('/auth/portal/logout');
 }
 
 // ---------------------------------------------------------------------------

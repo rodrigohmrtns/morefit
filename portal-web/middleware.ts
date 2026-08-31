@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/api/health', '/favicon.ico'];
-const TOKEN_COOKIE = 'mf_token';
+const TOKEN_COOKIE = 'mf_portal_session';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
