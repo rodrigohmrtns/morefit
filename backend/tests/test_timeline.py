@@ -42,6 +42,8 @@ async def user_token(http: AsyncClient):
         "email": email,
         "password": password,
         "height_cm": 170,
+        "terms_accepted": True,
+        "privacy_accepted": True,
     })
     assert r.status_code == 200, r.text
     j = r.json()

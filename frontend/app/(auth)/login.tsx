@@ -25,7 +25,19 @@ export default function Login() {
     setError(null);
     if (!email || !password) { setError('Preencha e-mail e senha'); return; }
     setLoading(true);
-    try { await login(email.trim(), password); router.replace('/'); }
+    try {
+      const result = await login(email.trim(), password);
+      if (result.status === 'ok') {
+        router.replace('/');
+      } else if (result.status === '2fa_required') {
+        router.push({
+          pathname: '/(auth)/two-factor',
+          params: { challengeId: result.challengeId, email: email.trim() },
+        });
+      } else if (result.status === '2fa_setup_required') {
+        setError('Esta conta exige 2FA. Faça login pelo portal profissional para configurar.');
+      }
+    }
     catch (e: any) { setError(e?.message || 'Falha ao entrar'); }
     finally { setLoading(false); }
   };

@@ -65,19 +65,34 @@ export default function PrivacyScreen() {
 
   const [summary, setSummary] = useState<Summary | null>(null);
   const [audit, setAudit] = useState<AuditItem[]>([]);
+  const [consent, setConsent] = useState<{ marketing: { accepted: boolean } } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [sum, aud] = await Promise.all([
+      const [sum, aud, con] = await Promise.all([
         api<Summary>('/lgpd/summary'),
         api<{ items: AuditItem[] }>('/lgpd/audit?limit=30'),
+        api<{ marketing: { accepted: boolean } }>('/lgpd/consent').catch(() => null),
       ]);
       setSummary(sum);
       setAudit(aud.items);
+      if (con) setConsent(con);
     } catch (e) { console.log(e); }
   }, []);
+
+  const toggleMarketing = async () => {
+    const next = !consent?.marketing?.accepted;
+    // optimistic
+    setConsent((c) => ({ ...(c || {}), marketing: { accepted: next } } as any));
+    try {
+      await api('/lgpd/consent', { method: 'PATCH', body: { marketing_accepted: next } });
+    } catch (e) {
+      // rollback on error
+      setConsent((c) => ({ ...(c || {}), marketing: { accepted: !next } } as any));
+    }
+  };
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -226,6 +241,32 @@ export default function PrivacyScreen() {
           </Pressable>
         )}
 
+        {/* LGPD art. 8º §5º — direito de revogar consentimentos */}
+        <Text style={s.sectionLbl}>Comunicações</Text>
+        <View style={s.card}>
+          <Pressable style={s.countRow} onPress={toggleMarketing} testID="privacy-toggle-marketing">
+            <View style={{ flex: 1 }}>
+              <Text style={s.countLbl}>Novidades, dicas e ofertas por e-mail</Text>
+              <Text style={{ ...typography.small, color: colors.muted, marginTop: 2 }}>
+                Você pode ativar ou desativar a qualquer momento
+              </Text>
+            </View>
+            <View
+              style={[
+                s.toggleTrack,
+                { backgroundColor: consent?.marketing?.accepted ? colors.brandPrimary : colors.surfaceTertiary },
+              ]}
+            >
+              <View
+                style={[
+                  s.toggleThumb,
+                  { transform: [{ translateX: consent?.marketing?.accepted ? 20 : 0 }] },
+                ]}
+              />
+            </View>
+          </Pressable>
+        </View>
+
         <Text style={s.sectionLbl}>Detalhamento por categoria</Text>
         <View style={s.card}>
           {Object.entries(summary?.counts ?? {}).map(([key, count], i, arr) => (
@@ -324,4 +365,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   legal: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm },
   legalTitle: { ...typography.caption, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '700', marginBottom: spacing.xs },
   legalTxt: { ...typography.small, color: colors.muted, lineHeight: 18 },
+
+  toggleTrack: {
+    width: 44, height: 24, borderRadius: 12, padding: 2,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
+  },
 });

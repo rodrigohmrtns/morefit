@@ -28,7 +28,7 @@ def api_client():
 def auth(api_client):
     r = api_client.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
     if r.status_code != 200:
-        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": TEST_EMAIL, "password": TEST_PASSWORD})
+        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": TEST_EMAIL, "password": TEST_PASSWORD, "terms_accepted": True, "privacy_accepted": True})
         assert r2.status_code == 200
         data = r2.json()
     else:

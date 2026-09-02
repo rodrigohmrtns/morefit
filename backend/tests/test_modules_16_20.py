@@ -23,7 +23,7 @@ def auth(api_client):
     r = api_client.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
     if r.status_code != 200:
         # Register if not present
-        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": TEST_EMAIL, "password": TEST_PASSWORD})
+        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": TEST_EMAIL, "password": TEST_PASSWORD, "terms_accepted": True, "privacy_accepted": True})
         assert r2.status_code == 200, f"register failed: {r2.status_code} {r2.text}"
         data = r2.json()
     else:

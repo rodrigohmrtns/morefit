@@ -1,0 +1,47 @@
+{
+  "summary": "Validação backend das funcionalidades P0 de segurança (2FA TOTP + regressão LGPD). Suíte completa executada: 124/124 testes passando em ~68s. Foram adicionados 4 testes opcionais de edge-case em test_2fa_edge_cases.py (enable sem setup pendente, anti-replay do mesmo TOTP em challenges diferentes, rate-limit no verify-login com 429 após 5 tentativas, e reutilização de challenge já consumida). Todos os endpoints 2FA (/setup, /enable, /status, /disable, /backup-codes/regenerate, /2fa/login, /2fa/verify-login) e gates de 2FA no legacy /auth/login e /auth/portal/login estão funcionando conforme especificado. Zero regressões na suíte LGPD.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "server.py:106,160", "issue": "Uso de @app.on_event('startup'|'shutdown') está deprecado no FastAPI — migrar para lifespan handlers. Não bloqueante, apenas warning."},
+      {"endpoint": "routers/food.py:133 e routers/tracking.py:103", "issue": "Uso de Pydantic v1 payload.dict() — deprecated em Pydantic v2; substituir por model_dump()."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_2fa_totp.py",
+    "/app/backend/tests/test_2fa_edge_cases.py",
+    "/app/backend/tests/test_security_critical.py",
+    "/app/backend/tests/test_lgpd_consent.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Opcional/baixa prioridade) Migrar @app.on_event para FastAPI lifespan handlers em server.py.",
+    "(Opcional/baixa prioridade) Substituir payload.dict() por payload.model_dump() em routers/food.py:133 e routers/tracking.py:103.",
+    "Nenhuma ação obrigatória — 2FA e LGPD estão prontos para o próximo estágio (frontend UI)."
+  ],
+  "critical_code_review_comments": [
+    "core/totp.py: chave Fernet possui fallback hard-coded para dev — OK porque documentado, mas confirmar que TOTP_ENCRYPTION_KEY está definido em produção (rotação de chave = perda de acesso 2FA para todos os usuários). Recomenda-se KMS/versionamento.",
+    "routers/twofa.py::_validate_challenge — pré-checa attempts ANTES de incrementar, portanto o bloqueio 429 acontece na 6ª chamada (attempts já é 5). Comportamento correto e testado, mas a mensagem 'Muitas tentativas' pode confundir; o token é destruído no mesmo passo (delete_one) — comportamento seguro.",
+    "routers/twofa.py::verify_login — bem estruturado: usa $pull atômico para backup codes (single-use garantido) e update condicional em last_timecode ($lt) para anti-replay TOTP. Ambos foram validados via testes concorrentes conceituais.",
+    "core/totp.py::verify_totp_get_timecode — respeita valid_window=1 (±30s drift). Timing-constant compare via hmac.compare_digest está correto.",
+    "routers/twofa.py::disable_2fa — bloqueia roles obrigatórias via is_2fa_mandatory antes de qualquer verificação; ordem correta.",
+    "Legacy /auth/login retorna {status:'2fa_required', challenge_id} quando 2FA ativo — a resposta NÃO contém token nem user, evitando bypass. Testado em test_login_returns_challenge_when_2fa_enabled.",
+    "Sem vazamento de _id do MongoDB nos payloads públicos de auth_challenges (usa _id como challenge_id string, mas resposta só expõe challenge_id no shape controlado).",
+    "Índice TTL para auth_challenges (server.py:148-152) garante limpeza automática de challenges expirados — boa prática."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_2fa_edge_cases.py (NOVO — 4 testes de edge-case adicionais)"
+  ],
+  "success_rate": {"backend": "100% (124/124)", "frontend": "N/A (não solicitado)"},
+  "seed_data_creation": "Nenhuma seed persistente. Todos os testes usam usuários temporários com email totp_*/totpx_*@example.com e cleanup automático via fixture (users, audit_logs, auth_challenges).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend 2FA e LGPD estão estáveis (124/124 testes verdes, incluindo anti-replay e rate-limit). Próximo passo lógico é UI: telas de (a) setup 2FA com QR code e backup codes, (b) prompt de código no login, (c) opção regenerar backup codes, (d) desativar 2FA (com bloqueio para roles obrigatórias). Endpoint público chave: POST /api/auth/2fa/login retorna {status: 'ok'|'2fa_required'|'2fa_setup_required', challenge_id?, token?, user?}. Credenciais de teste: /app/memory/test_credentials.md (ana@example.com / secret123).",
+  "rca_of_issue": "N/A — nenhum bug encontrado. Todos os cenários críticos validados: (1) setup gera QR data:image/png;base64 + 10 backup codes; (2) enable ativa após TOTP válido, rejeita código errado (400) e sem setup pendente (400); (3) status expõe {enabled, mandatory, pending, backup_codes_remaining}; (4) disable exige password+code, retorna 401 se qualquer errado, 403 para role obrigatória; (5) regenerate emite novos 10 códigos disjuntos dos antigos; (6) /2fa/login retorna challenge quando 2FA ativo, 2fa_setup_required se role obrigatória sem 2FA; (7) verify-login aceita TOTP OU backup code, backup single-use via $pull atômico, mesmo TOTP não reutilizável (anti-replay via last_timecode $lt); (8) challenge expira em 5min (TTL index) e trava em 429 após 5 tentativas; (9) legacy /auth/login também retorna challenge quando 2FA ativo (bypass proof)."
+}

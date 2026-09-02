@@ -459,3 +459,38 @@ Tela `/notifications-settings.tsx`:
 - `@tanstack/react-query 5.101.4`, `@tanstack/react-query-persist-client 5.101.4`, `@tanstack/query-async-storage-persister 5.101.4`
 - `@react-native-async-storage/async-storage`, `@react-native-community/netinfo 11.4.1`
 - `fuse.js 7.5.0`
+
+---
+
+## v1.7 — LGPD Consent + 2FA TOTP (2026-09-02)
+
+### Item E — Legal Pages (landing-web)
+- `/privacidade` — LGPD-compliant privacy policy (14 sections: DPO, categories of data, art. 18 rights, retention, children, contact).
+- `/termos` — Terms of use (15 sections: definitions, health disclaimer, IA limits, professional portal terms).
+- `/cookies` — Cookie policy with tables of necessary vs optional cookies.
+- Reusable `LegalLayout` component (title, updated date, DPO CTA footer).
+- `@tailwindcss/typography` plugin enabled.
+
+### Item F — 2FA TOTP
+- **Backend**
+  - `core/totp.py`: Fernet-encrypted secret at rest, SHA-256 backup code hashes, QR PNG data URL, anti-replay via `last_timecode` (strictly increasing).
+  - `routers/twofa.py`: 7 endpoints — `/status`, `/setup`, `/enable`, `/disable`, `/backup-codes/regenerate`, `/login`, `/verify-login`.
+  - Mandatory roles: `nutritionist | personal | doctor | admin | superadmin` — cannot bypass 2FA.
+  - Legacy `/auth/login` and `/auth/portal/login` also gate 2FA (return challenge if enabled).
+  - `auth_challenges` MongoDB collection with TTL 5 min + max 5 attempts.
+- **Frontend Mobile**
+  - `(auth)/two-factor.tsx` — challenge verify screen with 6-digit auto-submit + backup code fallback.
+  - `two-factor.tsx` — management screen (setup w/ QR + backup codes → enable → regenerate / disable).
+  - `two-factor-disable.tsx` — password + code confirmation.
+  - CTA in Perfil → Segurança.
+  - `AuthContext.login` now returns discriminated `LoginResult` union.
+- **Tests**: 15 new (test_2fa_totp.py) + 18 updated (test_security_critical.py). Total: **120/120 passing**.
+- **Env**: `TOTP_ENCRYPTION_KEY` (Fernet 32-byte base64).
+
+### Deferred (P2/P3 backlog)
+- Suspicious login detection (email alert on new IP/device).
+- Strict password policy (12 chars + zxcvbn score ≥ 3).
+- Account anonymization (vs total deletion) for audit-log preservation.
+- LGPD retention cron (10-month warning, 12-month delete).
+- Professional onboarding via super admin panel.
+- Aggregated portal reports (adherence, risk alerts).

@@ -169,6 +169,17 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
+    # LGPD art. 8º — consentimento livre, informado, inequívoco
+    terms_accepted: bool = Field(
+        description="Aceite dos Termos de Uso (obrigatório)",
+    )
+    privacy_accepted: bool = Field(
+        description="Aceite da Política de Privacidade (obrigatório)",
+    )
+    marketing_accepted: bool = Field(
+        default=False,
+        description="Aceita receber comunicações de marketing (opcional, retirável a qualquer momento)",
+    )
 
 
 class LoginIn(BaseModel):

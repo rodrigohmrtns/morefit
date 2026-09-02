@@ -33,6 +33,7 @@ def regular_user():
     email = f"sec_{uuid.uuid4().hex[:8]}@example.com"
     r = requests.post(f"{API}/auth/register", json={
         "name": "Sec Tester", "email": email, "password": "TestPass!123",
+        "terms_accepted": True, "privacy_accepted": True,
     }, timeout=10)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -47,18 +48,47 @@ def regular_user():
 
 @pytest.fixture
 def professional_user():
+    """Professional (nutritionist) with 2FA fully enabled — as required by policy."""
+    import pyotp as _pyotp
     email = f"nutri_{uuid.uuid4().hex[:8]}@example.com"
     password = "TestPass!123"
     r = requests.post(f"{API}/auth/register", json={
         "name": "Dr Test", "email": email, "password": password,
+        "terms_accepted": True, "privacy_accepted": True,
     }, timeout=10)
     assert r.status_code == 200
+    token = r.json()["token"]
     uid = r.json()["user"]["user_id"]
+    # Enable 2FA
+    setup = requests.post(f"{API}/auth/2fa/setup",
+                          headers={"Authorization": f"Bearer {token}"}, timeout=10).json()
+    code = _pyotp.TOTP(setup["manual_secret"]).now()
+    requests.post(f"{API}/auth/2fa/enable",
+                  headers={"Authorization": f"Bearer {token}"},
+                  json={"code": code}, timeout=10).raise_for_status()
+    # Promote to nutritionist (mandatory 2FA role)
     cli = MongoClient(MONGO_URL)
     db = cli[DB_NAME]
     db.users.update_one({"user_id": uid}, {"$set": {"role": "nutritionist"}})
-    yield email, password, uid
+    yield email, password, uid, setup["manual_secret"]
     db.users.delete_one({"user_id": uid})
+    db.auth_challenges.delete_many({"user_id": uid})
+
+
+def _portal_login_with_2fa(email: str, password: str, secret: str,
+                            session: requests.Session | None = None):
+    """Full portal login: password → challenge → TOTP verify. Returns final response."""
+    import pyotp as _pyotp
+    s = session or requests
+    r1 = s.post(f"{API}/auth/portal/login",
+                json={"email": email, "password": password}, timeout=10)
+    assert r1.status_code == 200
+    j = r1.json()
+    assert j.get("status") == "2fa_required", f"Expected challenge, got {j}"
+    code = _pyotp.TOTP(secret).now()
+    r2 = s.post(f"{API}/auth/2fa/verify-login",
+                json={"challenge_id": j["challenge_id"], "code": code}, timeout=10)
+    return r2
 
 
 def _make_test_jpeg_with_exif(width=100, height=100) -> bytes:
@@ -85,16 +115,15 @@ class TestPortalCookieAuth:
         assert "portal" in r.json()["detail"].lower()
 
     def test_login_wrong_password(self, professional_user):
-        email, _pw, _uid = professional_user
+        email, _pw, _uid, _sec = professional_user
         r = requests.post(f"{API}/auth/portal/login", json={
             "email": email, "password": "wrong",
         }, timeout=10)
         assert r.status_code == 401
 
     def test_portal_login_sets_httponly_cookie(self, professional_user):
-        email, pw, _uid = professional_user
-        r = requests.post(f"{API}/auth/portal/login",
-                          json={"email": email, "password": pw}, timeout=10)
+        email, pw, _uid, secret = professional_user
+        r = _portal_login_with_2fa(email, pw, secret)
         assert r.status_code == 200, r.text
         assert "token" not in r.json()
         assert r.json().get("user", {}).get("email") == email
@@ -105,10 +134,9 @@ class TestPortalCookieAuth:
         assert "samesite" in set_cookie.lower()
 
     def test_portal_me_via_cookie(self, professional_user):
-        email, pw, _uid = professional_user
+        email, pw, _uid, secret = professional_user
         s = requests.Session()
-        r = s.post(f"{API}/auth/portal/login",
-                   json={"email": email, "password": pw}, timeout=10)
+        r = _portal_login_with_2fa(email, pw, secret, session=s)
         assert r.status_code == 200
         # Session auto-persists cookies
         r = s.get(f"{API}/auth/portal/me", timeout=10)
@@ -120,10 +148,9 @@ class TestPortalCookieAuth:
         assert r.status_code == 401
 
     def test_portal_logout_clears_cookie(self, professional_user):
-        email, pw, _uid = professional_user
+        email, pw, _uid, secret = professional_user
         s = requests.Session()
-        s.post(f"{API}/auth/portal/login",
-               json={"email": email, "password": pw}, timeout=10)
+        _portal_login_with_2fa(email, pw, secret, session=s)
         r = s.post(f"{API}/auth/portal/logout", timeout=10)
         assert r.status_code == 200
         # Cookie should be cleared (max-age=0 or Expires=past)

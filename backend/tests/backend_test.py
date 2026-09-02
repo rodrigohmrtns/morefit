@@ -25,7 +25,7 @@ def api_client():
 def user_ctx(api_client):
     """Create a fresh test user; return token + user."""
     email = f"test_{uuid.uuid4().hex[:8]}@example.com"
-    payload = {"name": "Test User", "email": email, "password": "secret123"}
+    payload = {"name": "Test User", "email": email, "password": "secret123", "terms_accepted": True, "privacy_accepted": True}
     r = api_client.post(f"{API}/auth/register", json=payload)
     assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
     data = r.json()
@@ -109,8 +109,7 @@ class TestAuth:
 
     def test_register_duplicate_email(self, api_client, user_ctx):
         r = api_client.post(f"{API}/auth/register", json={
-            "name": "Dup", "email": user_ctx["email"], "password": "secret123"
-        })
+            "name": "Dup", "email": user_ctx["email"], "password": "secret123", "terms_accepted": True, "privacy_accepted": True})
         assert r.status_code == 400
 
     def test_login_valid(self, api_client, user_ctx):

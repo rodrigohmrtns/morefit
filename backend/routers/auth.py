@@ -44,11 +44,27 @@ def _cookie_kwargs():
     }
 
 
+# Current version of legal documents. Bump when content changes materially —
+# users will be re-prompted to accept the new version on next login.
+LEGAL_TERMS_VERSION = "1.0"
+LEGAL_PRIVACY_VERSION = "1.0"
+
+
 @router.post("/auth/register")
 async def register(payload: RegisterIn, request: Request, _rl: None = Depends(register_rate_limit)):
     existing = await db.users.find_one({"email": payload.email.lower()})
     if existing:
         raise HTTPException(400, "E-mail já cadastrado")
+    # LGPD art. 8º — reject registration without explicit consent to Terms + Privacy
+    if not payload.terms_accepted or not payload.privacy_accepted:
+        raise HTTPException(
+            400,
+            "Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.",
+        )
+    ts = now_utc()
+    # Capture minimal audit trail: what was accepted, when, from where.
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")[:400]
     user = {
         "user_id": new_id("user"),
         "email": payload.email.lower(),
@@ -64,14 +80,27 @@ async def register(payload: RegisterIn, request: Request, _rl: None = Depends(re
         "daily_sleep_hours_goal": 8.0,
         "target_date": None, "photo_base64": None,
         "onboarded": False,
+        # LGPD consent bookkeeping
+        "consents": {
+            "terms": {"accepted": True, "version": LEGAL_TERMS_VERSION, "at": ts, "ip": ip, "ua": ua},
+            "privacy": {"accepted": True, "version": LEGAL_PRIVACY_VERSION, "at": ts, "ip": ip, "ua": ua},
+            "marketing": {"accepted": bool(payload.marketing_accepted), "at": ts, "ip": ip, "ua": ua},
+        },
     }
     await db.users.insert_one(user)
-    await audit_service.log_event(event_type="auth.register", user=user, request=request)
+    await audit_service.log_event(
+        event_type="auth.register", user=user, request=request,
+        metadata={
+            "terms_version": LEGAL_TERMS_VERSION,
+            "privacy_version": LEGAL_PRIVACY_VERSION,
+            "marketing": bool(payload.marketing_accepted),
+        },
+    )
     return {"token": make_jwt(user["user_id"]), "user": _public_user(user)}
 
 
 @router.post("/auth/login")
-async def login(payload: LoginIn, request: Request, _rl: None = Depends(auth_rate_limit)):
+async def login(payload: LoginIn, request: Request, response: Response, _rl: None = Depends(auth_rate_limit)):
     user = await db.users.find_one({"email": payload.email.lower()})
     if not user or not user.get("password_hash") or not verify_password(payload.password, user["password_hash"]):
         await audit_service.log_event(
@@ -81,6 +110,16 @@ async def login(payload: LoginIn, request: Request, _rl: None = Depends(auth_rat
         raise HTTPException(401, "Credenciais inválidas")
     if user.get("deleted_at"):
         raise HTTPException(403, "Conta excluída")
+
+    # 2FA gate — protects legacy clients too
+    from core.totp import is_2fa_enabled, is_2fa_mandatory
+    from routers.twofa import _create_login_challenge
+    if is_2fa_mandatory(user) and not is_2fa_enabled(user):
+        return {"status": "2fa_setup_required", "email": user["email"]}
+    if is_2fa_enabled(user):
+        cid = await _create_login_challenge(user, "mobile")
+        return {"status": "2fa_required", "challenge_id": cid, "expires_in": 300}
+
     await audit_service.log_event(event_type="auth.login", user=user, request=request)
     return {"token": make_jwt(user["user_id"]), "user": _public_user(user)}
 
@@ -177,6 +216,15 @@ async def portal_login(
             metadata={"role": role}, severity="warn",
         )
         raise HTTPException(403, "Conta sem acesso ao portal profissional")
+
+    # 2FA gate for portal (professionals — mandatory by policy)
+    from core.totp import is_2fa_enabled, is_2fa_mandatory
+    from routers.twofa import _create_login_challenge
+    if is_2fa_mandatory(user) and not is_2fa_enabled(user):
+        return {"status": "2fa_setup_required", "email": user["email"]}
+    if is_2fa_enabled(user):
+        cid = await _create_login_challenge(user, "portal")
+        return {"status": "2fa_required", "challenge_id": cid, "expires_in": 300}
 
     token = make_jwt(user["user_id"])
     response.set_cookie(

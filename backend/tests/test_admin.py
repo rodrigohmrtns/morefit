@@ -27,7 +27,7 @@ def admin_headers(api_client):
     """Ensure the test user exists AND is super_admin, then return auth headers."""
     r = api_client.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PWD})
     if r.status_code != 200:
-        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": ADMIN_EMAIL, "password": ADMIN_PWD})
+        r2 = api_client.post(f"{API}/auth/register", json={"name": "Ana Silva", "email": ADMIN_EMAIL, "password": ADMIN_PWD, "terms_accepted": True, "privacy_accepted": True})
         assert r2.status_code == 200
         data = r2.json()
     else:
@@ -47,7 +47,7 @@ def non_admin_headers(api_client):
     password = "regular123"
     r = api_client.post(f"{API}/auth/login", json={"email": email, "password": password})
     if r.status_code != 200:
-        r2 = api_client.post(f"{API}/auth/register", json={"name": "Regular", "email": email, "password": password})
+        r2 = api_client.post(f"{API}/auth/register", json={"name": "Regular", "email": email, "password": password, "terms_accepted": True, "privacy_accepted": True})
         assert r2.status_code == 200
         data = r2.json()
     else:

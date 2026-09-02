@@ -34,13 +34,19 @@ export type User = {
 type Ctx = {
   loading: boolean;
   user: User | null;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, opts?: { marketingAccepted?: boolean }) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  verify2FA: (challengeId: string, code: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   setUser: (u: User) => void;
 };
+
+export type LoginResult =
+  | { status: 'ok' }
+  | { status: '2fa_required'; challengeId: string; expiresIn: number }
+  | { status: '2fa_setup_required'; email: string };
 
 const AuthCtx = createContext<Ctx | null>(null);
 
@@ -115,18 +121,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { mounted = false; sub.remove(); };
   }, [refresh, processSessionId]);
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, opts?: { marketingAccepted?: boolean }) => {
     const res = await api<{ token: string; user: User }>('/auth/register', {
-      method: 'POST', auth: false, body: { name, email, password },
+      method: 'POST', auth: false, body: {
+        name, email, password,
+        terms_accepted: true,
+        privacy_accepted: true,
+        marketing_accepted: !!opts?.marketingAccepted,
+      },
     });
     await setToken(res.token);
     setUserState(res.user);
   };
 
-  const login = async (email: string, password: string) => {
-    const res = await api<{ token: string; user: User }>('/auth/login', {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    const res = await api<any>('/auth/login', {
       method: 'POST', auth: false, body: { email, password },
     });
+    // Success path (no 2FA)
+    if (res?.token && res?.user) {
+      await setToken(res.token);
+      setUserState(res.user);
+      return { status: 'ok' };
+    }
+    // 2FA required — return challenge so the UI can push the verify screen
+    if (res?.status === '2fa_required' && res?.challenge_id) {
+      return { status: '2fa_required', challengeId: res.challenge_id, expiresIn: res.expires_in ?? 300 };
+    }
+    if (res?.status === '2fa_setup_required') {
+      return { status: '2fa_setup_required', email: res.email };
+    }
+    throw new Error('Resposta de login inesperada');
+  };
+
+  const verify2FA = async (challengeId: string, code: string): Promise<void> => {
+    const res = await api<any>('/auth/2fa/verify-login', {
+      method: 'POST', auth: false,
+      body: { challenge_id: challengeId, code },
+    });
+    if (!res?.token || !res?.user) throw new Error('Falha ao verificar o código');
     await setToken(res.token);
     setUserState(res.user);
   };
@@ -153,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo<Ctx>(() => ({
-    loading, user, register, login, loginWithGoogle, logout, refresh,
+    loading, user, register, login, verify2FA, loginWithGoogle, logout, refresh,
     setUser: (u) => setUserState(u),
   }), [loading, user, refresh]);
 

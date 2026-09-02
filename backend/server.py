@@ -41,6 +41,7 @@ from routers.timeline import router as timeline_router
 # Pre-existing sub-app routers (already modularized)
 from routers.lgpd import router as lgpd_router
 from routers.admin import router as admin_router
+from routers.twofa import router as twofa_router
 
 # Legacy compatibility routes that live outside /api
 from routers.professional import build_public_report_html
@@ -85,6 +86,7 @@ api.include_router(widgets_router)
 api.include_router(timeline_router)
 api.include_router(lgpd_router)
 api.include_router(admin_router)
+api.include_router(twofa_router)
 
 app.include_router(api)
 
@@ -147,6 +149,10 @@ async def startup() -> None:
     # Widgets
     await db.widget_tokens.create_index("token", unique=True)
     await db.widget_tokens.create_index("user_id", unique=True)
+
+    # 2FA — short-lived login challenges (TTL auto-cleanup)
+    await db.auth_challenges.create_index("expires_at", expireAfterSeconds=0)
+    await db.auth_challenges.create_index("user_id")
 
     log.info("MoreFit started — indexes ready.")
 

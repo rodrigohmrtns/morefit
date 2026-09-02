@@ -180,6 +180,13 @@ export default function Profile() {
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </View>
           </Pressable>
+          <Pressable onPress={() => router.push('/two-factor')} testID="profile-2fa-cta">
+            <View style={[s.row, s.rowBorder]}>
+              <View style={s.rowIcon}><Ionicons name="key" size={18} color={colors.brandDark} /></View>
+              <Text style={s.rowLabel}>Verificação em 2 etapas (2FA)</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </View>
+          </Pressable>
           <Pressable onPress={() => router.push('/notifications-settings')} testID="profile-notifications-cta">
             <View style={[s.row, s.rowBorder]}>
               <View style={s.rowIcon}><Ionicons name="notifications" size={18} color={colors.brandDark} /></View>

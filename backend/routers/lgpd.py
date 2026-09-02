@@ -99,3 +99,56 @@ async def my_audit(user: dict = Depends(current_user), limit: int = 100):
     """Return the last N audit events for the current user."""
     items = await audit_repo.list_for_user(user["user_id"], limit=limit)
     return {"items": items}
+
+
+# ---------------------------------------------------------------------------
+# Consent management (LGPD art. 8º)
+# ---------------------------------------------------------------------------
+from datetime import datetime, timezone
+from pydantic import BaseModel
+
+
+class ConsentUpdateIn(BaseModel):
+    marketing_accepted: bool
+
+
+@router.get("/consent")
+async def get_consent(user: dict = Depends(current_user)):
+    """Return current consent state for the logged-in user."""
+    consents = user.get("consents") or {}
+    return {
+        "terms": consents.get("terms") or {"accepted": False},
+        "privacy": consents.get("privacy") or {"accepted": False},
+        "marketing": consents.get("marketing") or {"accepted": False},
+    }
+
+
+@router.patch("/consent")
+async def update_consent(
+    payload: ConsentUpdateIn,
+    request: Request,
+    user: dict = Depends(current_user),
+):
+    """Update revocable consents (only marketing today).
+
+    Terms and Privacy cannot be revoked without deleting the account (per LGPD
+    art. 16 II — data controller may retain data to fulfil legal obligation).
+    """
+    ts = datetime.now(timezone.utc)
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")[:400]
+    consents = user.get("consents") or {}
+    consents["marketing"] = {
+        "accepted": bool(payload.marketing_accepted),
+        "at": ts, "ip": ip, "ua": ua,
+    }
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"consents": consents}},
+    )
+    await audit_service.log_event(
+        event_type="lgpd.consent_updated",
+        user=user, request=request,
+        metadata={"marketing": bool(payload.marketing_accepted)},
+    )
+    return {"ok": True, "marketing": consents["marketing"]}

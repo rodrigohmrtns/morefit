@@ -65,7 +65,7 @@ def premium_headers(api_client):
 def non_premium_headers(api_client):
     """Fresh signup — new users are non-premium by default."""
     email = f"nonprem_recipe_{uuid.uuid4().hex[:8]}@example.com"
-    r = api_client.post(f"{API}/auth/register", json={"name": "NoPrem", "email": email, "password": "secret123"})
+    r = api_client.post(f"{API}/auth/register", json={"name": "NoPrem", "email": email, "password": "secret123", "terms_accepted": True, "privacy_accepted": True})
     assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
     data = r.json()
     # Sanity: make sure DB does NOT mark them premium.

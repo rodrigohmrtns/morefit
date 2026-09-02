@@ -795,3 +795,103 @@ agent_communication:
       Docs adicionados nessa sessão:
       - `/app/docs/infra-locaweb.md` — guia completo de setup do VPS Locaweb (usuários, firewall, MongoDB, systemd, PM2, Nginx, Certbot, backups)
       - `/app/docs/security-audit.md` — mapeamento de 26 itens de segurança (o que já existe, o que falta, prioridades, custos)
+
+# ==================== Fase Segurança v1.7 — LGPD Consent + 2FA TOTP ====================
+
+backend:
+  - task: "LGPD explicit consent at registration"
+    implemented: true
+    working: true
+    file: "backend/routers/auth.py, backend/deps.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Register agora requer terms_accepted + privacy_accepted (LGPD art. 8º). marketing_accepted opcional. Consent versionado + IP + UA salvos em user.consents. Endpoint /api/lgpd/consent para revogar marketing. 12 novos tests em test_lgpd_consent.py."
+  - task: "2FA TOTP (setup, enable, challenge login, backup codes, disable)"
+    implemented: true
+    working: true
+    file: "backend/core/totp.py, backend/routers/twofa.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: |
+          Nova infraestrutura 2FA completa:
+          - core/totp.py: Fernet-encrypted secret, SHA-256 backup code hashes, QR PNG data URL, anti-replay via last_timecode
+          - routers/twofa.py: /auth/2fa/{status,setup,enable,disable,backup-codes/regenerate,login,verify-login}
+          - Policy: nutritionist/personal/doctor/admin/superadmin OBRIGATÓRIO. Users comuns opcional.
+          - Legacy /auth/login e /auth/portal/login também bloqueiam bypass — retornam challenge se 2FA on
+          - auth_challenges collection com TTL index (5 min expiry, max 5 tentativas)
+          - Backup codes: 10 códigos alfanuméricos únicos, single-use, hash SHA-256
+          - 15 novos tests em test_2fa_totp.py + 18 tests security_critical.py atualizados
+
+frontend:
+  - task: "2FA verify screen on login"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(auth)/two-factor.tsx, frontend/src/contexts/AuthContext.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+          Login flow atualizado: retorna LoginResult union (ok | 2fa_required | 2fa_setup_required).
+          Nova tela /(auth)/two-factor com input 6-digit auto-submit, opção 'usar código de recuperação', countdown de 5min.
+          Screenshot local OK: tela renderiza corretamente.
+  - task: "2FA management screen (settings)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/two-factor.tsx, frontend/app/two-factor-disable.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+          Tela /two-factor com 3 modos: (a) disabled → CTA Ativar; (b) setup → QR + backup codes + verify code (bloqueia enable se não copiou codes); (c) enabled → status card + regenerate + disable.
+          Tela /two-factor-disable com password + code para confirmação.
+          CTA no Perfil → Segurança → 'Verificação em 2 etapas (2FA)'.
+          Screenshot OK.
+
+test_plan:
+  current_focus:
+    - "LGPD explicit consent at registration"
+    - "2FA TOTP (setup, enable, challenge login, backup codes, disable)"
+    - "2FA verify screen on login"
+    - "2FA management screen (settings)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Sessão P1 SEGURANÇA — 2FA TOTP + páginas legais LGPD concluídas:
+
+      **Item E — Legal Pages (concluído):**
+      - /app/landing-web/app/privacidade — Política de Privacidade LGPD completa (14 seções: DPO, dados coletados, bases legais, direitos art. 18, segurança, crianças, cookies, mudanças, contato)
+      - /app/landing-web/app/termos — Termos de Uso (15 seções: definições, aceite, contas, pagamentos, aviso de saúde, IA, PI, portal profissional, encerramento, foro)
+      - /app/landing-web/app/cookies — Política de Cookies (5 seções, tabelas de cookies necessários vs opcionais)
+      - @tailwindcss/typography instalado + plugin habilitado
+      - Build OK, screenshot valida renderização com paleta MoreFit correta
+
+      **Item F — 2FA TOTP (concluído):**
+      - Bibliotecas: pyotp 2.10.0, qrcode 8.2, cryptography 49.0.0 (Fernet)
+      - core/totp.py: helpers para secret/QR/backup codes/anti-replay
+      - routers/twofa.py: 7 endpoints REST (status/setup/enable/disable/regenerate/login/verify-login)
+      - Legacy /auth/login e /auth/portal/login também gateiam 2FA (bypass-proof)
+      - Frontend: 2 novas telas (setup/manage + verify no login)
+      - AuthContext: login() agora retorna LoginResult (discriminated union)
+      - Nutricionistas/admin/superadmin com 2FA obrigatório (bloqueia login sem setup)
+      - Backup codes: 10 códigos alfanuméricos, hash-only, single-use
+
+      **Tests: 120/120 backend passando** (105 anteriores + 15 novos 2FA).
+      Solicito testing_agent para validar frontend 2FA end-to-end (login com 2FA, setup na tela de perfil, backup codes, disable).
